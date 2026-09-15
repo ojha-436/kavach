@@ -12,10 +12,23 @@ const NAV = [
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const { user, loading, signIn, signOut } = useAuth();
+  const { user, loading, error, signIn, signOut, dismissError } = useAuth();
 
   return (
     <header className="border-b border-rule bg-paper-raised">
+      {error && (
+        <div className="border-b border-seal bg-seal-wash">
+          <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-2 text-sm text-seal">
+            <span>{error}</span>
+            <button
+              onClick={dismissError}
+              className="ml-auto underline-offset-4 hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-3">
         <Link href="/" className="font-display text-lg font-semibold tracking-tight text-ink">
           Kavach <span className="text-ink-faint">कवच</span>
