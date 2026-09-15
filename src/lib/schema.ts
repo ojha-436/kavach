@@ -1,0 +1,86 @@
+import { z } from "zod";
+
+export const Verdict = z.enum([
+  "VOID",
+  "UNENFORCEABLE_IN_PART",
+  "ONEROUS_BUT_VALID",
+  "STANDARD",
+  "FAVOURABLE",
+]);
+export type Verdict = z.infer<typeof Verdict>;
+
+export const Confidence = z.enum(["HIGH", "MEDIUM", "LOW"]);
+export type Confidence = z.infer<typeof Confidence>;
+
+export const StatutoryBasis = z.object({
+  ruleId: z.string(),
+  statute: z.string(),
+  section: z.string(),
+  authority: z.string().optional(),
+});
+export type StatutoryBasis = z.infer<typeof StatutoryBasis>;
+
+export const ClauseFinding = z.object({
+  clauseId: z.string(),
+  verdict: Verdict,
+  severity: z.number().int().min(0).max(5),
+  plainEnglish: z.string(),
+  whyItMatters: z.string(),
+  statutoryBasis: z.array(StatutoryBasis),
+  negotiationAsk: z.string().nullable(),
+  confidence: Confidence,
+  needsLawyer: z.boolean(),
+  lawyerQuestion: z.string().nullable(),
+});
+export type ClauseFinding = z.infer<typeof ClauseFinding>;
+
+export const DocType = z.enum(["rental", "employment"]);
+export type DocType = z.infer<typeof DocType>;
+
+export const UserSide = z.enum([
+  "tenant",
+  "landlord",
+  "employee",
+  "employer",
+  "unknown",
+]);
+export type UserSide = z.infer<typeof UserSide>;
+
+export const DocumentFrame = z.object({
+  docType: DocType,
+  state: z.string().nullable(),
+  language: z.string(),
+  parties: z.array(z.string()),
+  userSide: UserSide,
+});
+export type DocumentFrame = z.infer<typeof DocumentFrame>;
+
+export const Clause = z.object({
+  id: z.string(),
+  heading: z.string().nullable(),
+  text: z.string(),
+  startOffset: z.number().int(),
+  endOffset: z.number().int(),
+  page: z.number().int().nullable(),
+  clauseType: z.string().nullable(),
+});
+export type Clause = z.infer<typeof Clause>;
+
+export const RuleCard = z.object({
+  id: z.string(),
+  docType: DocType,
+  clauseType: z.string(),
+  statute: z.string(),
+  section: z.string(),
+  authority: z.string().optional(),
+  defaultVerdict: Verdict,
+  appliesWhen: z.string(),
+  doesNotApplyWhen: z.string().optional(),
+  plainEnglish: z.string(),
+  negotiationAsk: z.string().nullable(),
+  verifiedOn: z.string(),
+});
+export type RuleCard = z.infer<typeof RuleCard>;
+
+export const RulePack = z.array(RuleCard);
+export type RulePack = z.infer<typeof RulePack>;

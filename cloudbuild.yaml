@@ -1,0 +1,36 @@
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:$SHORT_SHA
+      - -t
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:latest
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - kavach
+      - --image=asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:$SHORT_SHA
+      - --region=asia-south1
+      - --platform=managed
+      - --allow-unauthenticated
+
+images:
+  - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:$SHORT_SHA
+  - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
