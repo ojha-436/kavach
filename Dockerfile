@@ -22,6 +22,15 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/rules ./rules
 
+# pdfjs-dist's fake worker (used when no real Worker is available, as in
+# Node) dynamically imports pdf.worker.mjs relative to pdf.mjs at runtime.
+# Next's file tracer only follows static imports, so it misses this file;
+# copy it explicitly to the same path standalone output already resolves
+# pdf.mjs from.
+COPY --from=builder --chown=nextjs:nodejs \
+  /app/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs \
+  ./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs
+
 USER nextjs
 
 EXPOSE 8080

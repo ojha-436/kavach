@@ -84,3 +84,33 @@ export type RuleCard = z.infer<typeof RuleCard>;
 
 export const RulePack = z.array(RuleCard);
 export type RulePack = z.infer<typeof RulePack>;
+
+/**
+ * 'ingesting' -> extracting text from the uploaded file
+ * 'segmented' -> Stage 0 done: clauses exist with offsets, nothing typed or judged yet
+ * The remaining states belong to Stages 1-6 (Day 3+).
+ */
+export const AnalysisStatus = z.enum([
+  "ingesting",
+  "segmented",
+  "framing",
+  "typing",
+  "adjudicating",
+  "synthesizing",
+  "done",
+  "error",
+]);
+export type AnalysisStatus = z.infer<typeof AnalysisStatus>;
+
+export const Analysis = z.object({
+  id: z.string(),
+  status: AnalysisStatus,
+  fileName: z.string(),
+  gcsUri: z.string(),
+  docTypeHint: DocType.nullable(),
+  progress: z.object({ total: z.number().int(), done: z.number().int() }),
+  error: z.string().nullable(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+});
+export type Analysis = z.infer<typeof Analysis>;

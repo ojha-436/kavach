@@ -105,13 +105,25 @@ than pushing the day into the next one.
 
 ### Day 2 — Ingest and spans (the ugliest plumbing, so do it early)
 
-- [ ] Signed-URL upload to Cloud Storage
-- [ ] PDF text extraction **with character offsets**
-- [ ] Clause segmentation: numbering heuristics first, one LLM repair pass second
-- [ ] Viewer UI: document left, clause list right, hover a clause and the span highlights
+- [x] Signed-URL upload to Cloud Storage — dedicated `kavach-uploads-promptwar-501405` bucket,
+      1-day lifecycle delete, CORS opened for the Cloud Run origin (caught by testing the real
+      upload button in a browser, not just curl — the direct browser-to-GCS PUT needs CORS that a
+      server-side curl test never exercises)
+- [x] PDF text extraction **with character offsets** — `pdfjs-dist`, page-mapped. DOCX via `mammoth`
+- [x] Clause segmentation: numbering/labelled-line heuristics, ALL-CAPS and paragraph fallbacks,
+      one LLM repair pass (merge-only + heading cleanup, never invents offsets)
+- [x] Viewer UI: document left, clause list right, click a clause and the span highlights
 
-**DoD:** upload a real rental agreement, see it split into clauses, click clause 14, watch it
-highlight in the document. No AI verdicts yet — this is pure plumbing and it has to be solid.
+**DoD:** met — verified against a real deployed browser session, not just the API: uploaded a
+synthetic rental agreement, got clean clause segmentation with correct character offsets and
+page numbers, clicked a clause in the list and only the matching span in the document highlighted.
+No AI verdicts yet, as planned.
+
+Also fixed along the way, not originally itemised here: the Cloud Run service was running on the
+default compute service account with project-wide `roles/editor` — replaced with a dedicated
+`kavach-run` SA scoped to exactly what Architecture §5.3 lists, plus a Firestore TTL policy on
+`analyses.expiresAt` (the field existed since Day 1 scaffolding but nothing was actually enforcing
+the 24h deletion promised in the privacy pitch until now).
 
 ### Day 3 — The pipeline, end to end, rental only
 

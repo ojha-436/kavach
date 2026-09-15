@@ -15,7 +15,10 @@
     "zod": "^3.24.1",
     "@google-cloud/firestore": "^7.11.0",
     "@google-cloud/storage": "^7.14.0",
-    "@google-cloud/vertexai": "^1.9.3"
+    "@google-cloud/vertexai": "^1.9.3",
+    "mammoth": "^1.9.0",
+    "pdfjs-dist": "^4.9.155",
+    "uuid": "^11.0.5"
   },
   "devDependencies": {
     "typescript": "^5.7.3",

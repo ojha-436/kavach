@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-8 px-6 py-24">
@@ -35,6 +37,13 @@ export default function Home() {
           </p>
         </div>
       </div>
+
+      <Link
+        href="/analyze"
+        className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
+      >
+        Upload a document
+      </Link>
 
       <p className="text-xs text-white/40">
         Legal information, not legal advice. Two document types, India only.
