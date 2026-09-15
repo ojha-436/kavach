@@ -102,6 +102,57 @@ export const AnalysisStatus = z.enum([
 ]);
 export type AnalysisStatus = z.infer<typeof AnalysisStatus>;
 
+/* ---------- Judgments (Surface B) ---------- */
+
+export const JudgmentParagraph = z.object({
+  index: z.number().int(),
+  text: z.string(),
+  startOffset: z.number().int(),
+  endOffset: z.number().int(),
+});
+export type JudgmentParagraph = z.infer<typeof JudgmentParagraph>;
+
+export const Judgment = z.object({
+  id: z.string(),
+  year: z.string(),
+  /** Neutral citation as published, e.g. "1950INSC1". */
+  citation: z.string().nullable(),
+  title: z.string(),
+  sourceUrl: z.string(),
+  paragraphCount: z.number().int(),
+  ingestedAt: z.string(),
+});
+export type Judgment = z.infer<typeof Judgment>;
+
+/**
+ * Every assertion the model makes about a judgment must name the paragraphs
+ * it came from. Points whose citations don't resolve are dropped before the
+ * user ever sees them — see validateExplanation in explain-judgment.ts.
+ */
+export const GroundedPoint = z.object({
+  text: z.string(),
+  paragraphs: z.array(z.number().int()),
+});
+export type GroundedPoint = z.infer<typeof GroundedPoint>;
+
+export const JudgmentExplanation = z.object({
+  /** The question the court was answering. */
+  issue: z.array(GroundedPoint),
+  /** What it decided. */
+  held: z.array(GroundedPoint),
+  /** Why. */
+  reasoning: z.array(GroundedPoint),
+  /** The operative order — who won, what relief. */
+  outcome: z.array(GroundedPoint),
+  /**
+   * The guardrail, and the most useful section for a non-lawyer: the limits
+   * the judgment itself sets. Uncited by design — these are statements of
+   * absence, and you cannot cite a paragraph for what a court did not say.
+   */
+  doesNotDecide: z.array(z.string()),
+});
+export type JudgmentExplanation = z.infer<typeof JudgmentExplanation>;
+
 export const Analysis = z.object({
   id: z.string(),
   status: AnalysisStatus,

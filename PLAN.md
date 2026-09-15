@@ -43,7 +43,12 @@ clause-level analysis exists.
 
 ## 2. Scope
 
-### In scope (v1, demo-complete)
+> **Scope was widened on Day 2** (see §7 Scope amendment) from "contract analyser" to a three-surface
+> platform: contracts, judgments, and an agent that can reach both. Two boundaries written in the
+> original plan were deliberately reversed. They are recorded as reversals in §7 rather than quietly
+> deleted, because the reasons they were drawn are still real and still constrain the build.
+
+### Surface A — Contract analysis (the original product, Days 1–4)
 
 - Two document types: **residential rental / leave-and-license** and **employment offer letter**
 - Upload PDF or DOCX; scanned PDFs via Document AI OCR
@@ -52,25 +57,55 @@ clause-level analysis exists.
 - Missing-protection diff
 - Document risk report with a prioritised action list
 - Draft negotiation email to the counterparty
-- Grounded Q&A with three-tier answers and explicit refusal
 - "Questions for your lawyer" export
+
+### Surface B — Judgment explainer (new)
+
+- Look up a Supreme Court judgment and get it in plain English
+- Source: the **AWS Open Data mirror** of SC judgments (`indian-supreme-court-judgments`,
+  `ap-south-1`, CC-BY-4.0, 1950–2025). Verified readable with no credentials on Day 2
+- Legality: reproducing a court judgment is **not** infringement — s.52(1)(q), Copyright Act 1957.
+  We use the judgment body, never law-report headnotes (those carry separate editorial copyright)
+- **The model may only interpret within the four corners of the judgment.** Every sentence of an
+  explanation carries a span citation into the judgment text, validated against the source after
+  generation. An assertion with no locatable span is dropped, not shown. This is the same structural
+  trick as validating `ruleId` against the rule pack — enforced in code, not asked for in a prompt
+- No prediction, no "what this means for your case", no extension to facts outside the judgment
+
+### Surface C — The agent (new)
+
+A tool-using agent, not a chatbot. It has no free-form legal knowledge to offer: everything it says
+comes back from a tool that returns citable data.
+
+- `search_judgments` · `explain_judgment` · `analyse_clause` · `lookup_rule` · `ask_a_lawyer`
+- Voice in and out (see §6 for why this is not Gemini Live)
+- The refusal path is a tool, not a failure: when a question turns on facts outside the document or
+  the judgment, it produces the precise question to put to a lawyer
+
+### Surface D — Accounts
+
+- Google Sign-In (already enabled on the GCP project; Kavach web app registered Day 2)
+- Profile with saved documents and past analyses
 
 ### Explicitly out of scope — say this in the pitch; knowing your boundary is a maturity signal
 
 - Jurisdictions outside India
 - Document types beyond the two above
 - Anything resembling legal advice on a specific live dispute
-- Case-law search. The rule pack is hand-curated and finite, and that is a deliberate trade
-- Multi-user accounts, billing, persistence beyond 24 hours
+- **Predicting** case outcomes, or applying a judgment to the user's own facts
+- High Court judgments in v1 (the corpus exists; the curation time does not)
+- Billing
 
 ### Cut list, in order, if days slip
 
-1. Scanned-PDF OCR (demo with text-layer PDFs only)
-2. Grounded Q&A chat
+1. Voice I/O (the agent works as text; voice is a demo flourish)
+2. Scanned-PDF OCR (demo with text-layer PDFs only)
 3. Obligations timeline
-4. Employment doc type (rental alone can carry the demo)
+4. Judgment semantic search (ship a curated set of ~20 landmark judgments instead of the full corpus)
+5. Employment doc type (rental alone can carry the demo)
 
-**Never cut:** the rule pack, span highlighting, the absence diff. Those three *are* the product.
+**Never cut:** the rule pack, span highlighting, the absence diff, and span-validated grounding on
+judgment explanations. Those four *are* the product. Everything else is surface area.
 
 ---
 
@@ -143,14 +178,25 @@ the 24h deletion promised in the privacy pitch until now).
 
 **DoD:** tonight you have something you would be willing to demo. Everything after this is upside.
 
-### Day 5 — Employment type, Q&A, refusal
+### Day 5 — Employment type, the agent, refusal
 
 - [ ] Employment taxonomy and rule pack wired in — this is where the S.27 moment lives
-- [ ] Stage 7 grounded Q&A: route to clauses, answer over those clauses only
+- [ ] Stage 7 grounded Q&A, now expressed as **the agent's tool loop** rather than a separate feature:
+      route to clauses, answer over those clauses only
 - [ ] Three-tier answers: document says / law says / not determinable → ask a lawyer *this question*
 - [ ] Prompt-injection hardening on document text, tested with an adversarial PDF
 
 **DoD:** upload an offer letter, ask "can I join a competitor?", get the S.27 answer with citation.
+
+### Day 5b — Judgments (added by the Day 2 scope amendment, §7)
+
+- [ ] Ingest a curated set of landmark SC judgments from the AWS mirror into GCS + Firestore
+- [ ] Judgment text extraction reusing the Day 2 offset pipeline
+- [ ] Span-validated explanation: every sentence cites a paragraph span, unlocatable claims dropped
+- [ ] Embedding search over the curated set (`text-multilingual-embedding-002`, in-region)
+
+**DoD:** search "non-compete", open a judgment, and every line of the plain-English explanation can
+be clicked back to the exact paragraph of the original that supports it.
 
 ### Day 6 — Polish and harden
 
@@ -209,6 +255,9 @@ Close on the refusal:
 | Cloud Run cold start ruins the live demo | Low | `min-instances=1` for the 48 hours around judging |
 | Scope creep into more document types | **High** | Two types. Written down. Re-read this line on Day 4 |
 | Organiser mandates a different stack | Unknown | `docs/HACKATHON.md` is unfilled. Resolve on Day 1 |
+| **Three surfaces, none finished** | **High** | The Day 2 amendment doubled the product. Surface A alone was already a complete submission. If Day 5 arrives and A is not demo-complete, cut B and C entirely and ship the contract analyser |
+| **Judgment explanation drifts into advice** | **High** | Span validation in code, not prompting. No prediction, no application to the user's facts. See §2 Surface B |
+| **Agent answers from its own legal knowledge** | **High** | The agent has no free-form answer path — every response is assembled from tool output, and a tool that returns nothing produces a refusal, not a guess |
 
 ---
 
@@ -217,8 +266,62 @@ Close on the refusal:
 - [ ] **Organiser's required stack and judging rubric.** Blocks final architecture sign-off.
       Still needed from you: submission deadline/timezone, required deliverables, and the rubric —
       paste them into `docs/HACKATHON.md` when you have them
+- [ ] **Voice: accept in-region STT/TTS, or take Gemini Live and lose data residency?**
+      Default taken: in-region. Reversible in one file (`src/lib/voice.ts`). See §7
 - [x] Model choice: **`gemini-2.5-flash` in `asia-south1`, single-tier, everywhere.** Confirmed live
       that `gemini-2.5-pro` 404s regionally in this project and only serves from `global`; using
       Flash everywhere keeps the data-residency claim intact instead of splitting Flash/Pro across
       regions. See `docs/HACKATHON.md` scope log and `src/lib/llm.ts`
 - [x] Product name: **Kavach**. Landing page and repo both use it — stop thinking about it
+- [x] Judgment source: **AWS Open Data mirror**, not a government API. See §7
+
+---
+
+## 7. Scope amendment — Day 2
+
+The brief widened from "contract analyser" to "contracts + judgments + a conversational agent, with
+accounts". What follows is what was verified before building, and what it costs.
+
+### Two earlier boundaries were reversed
+
+The original plan said **"Case-law search — out of scope. The rule pack is hand-curated and finite,
+and that is a deliberate trade"** and **"no multi-user accounts, no persistence beyond 24 hours."**
+Both are now in scope. The reasoning that produced those lines has not gone away:
+
+- Case law was excluded because **semantic retrieval over legal text is the main source of fabricated
+  citations**, which is fatal in a legal demo. That risk is unchanged. It is contained differently
+  now: retrieval only ever returns *whole judgments that exist in our own ingested corpus*, and the
+  model is never asked to recall a case — only to explain a document already in front of it, with
+  every claim span-checked against that document. Retrieval finds; it never asserts.
+- Persistence was excluded to keep the privacy story absolute ("deleted in 24 hours"). With accounts,
+  that claim now has to be stated precisely: **anonymous analyses still expire in 24h; signed-in users
+  keep their own documents until they delete them.** The pitch must say the second half too, or the
+  privacy slide becomes a lie by omission.
+
+### Verified on Day 2, before any of it was built
+
+| Question | Answer | Consequence |
+|---|---|---|
+| Is Gemini Live available? | **No.** `asia-south1` publishes exactly 3 models to this project: `gemini-2.5-flash`, `text-embedding-005`, `text-multilingual-embedding-002`. Live and native-audio 404 in `asia-south1`, `global` and `us-central1` | Voice = Cloud STT/TTS in `asia-south1` + Flash brain, behind `src/lib/voice.ts` |
+| Is there a government API for judgment text? | **No.** eCourts/NJDG is CAPTCHA-gated and institution-only; data.gov.in's judiciary catalog has 62 resources and **zero** judgment text | Use the AWS Open Data mirror |
+| Can we legally reproduce judgments? | **Yes** — s.52(1)(q), Copyright Act 1957. Judgment body only; law-report headnotes carry separate editorial copyright | Never ingest SCR headnotes |
+| Is the corpus reachable? | **Yes** — `indian-supreme-court-judgments`, `ap-south-1`, no credentials needed, `data/pdf/` + `metadata/{json,parquet}/`. Verified HTTP 200 | Reuse the Day 2 PDF→offset pipeline |
+| Is Google Sign-In available? | **Already enabled** on the project | Kavach web app registered Day 2 |
+
+### The honest cost
+
+This roughly doubles the product surface on Day 2 of 7, in a solo build where Surface A — the
+contract analyser — was already a complete, defensible submission and is still **not finished**
+(Stages 1–6 remain unbuilt). Surfaces B, C and D are additive, not substitutes. The mitigation is
+the cut list in §2 and the risk row above: **if Day 5 arrives and Surface A is not demo-complete,
+B and C get cut, not compressed.** A finished contract analyser beats three half-built surfaces,
+and a judge can tell the difference in about fifteen seconds.
+
+### Why "agentic" here means tools, not personality
+
+The agent has no free-form legal answer path. It holds five tools — `search_judgments`,
+`explain_judgment`, `analyse_clause`, `lookup_rule`, `ask_a_lawyer` — and every sentence it produces
+is assembled from what those returned. `ask_a_lawyer` is the refusal path promoted to a first-class
+tool: when the question turns on facts outside the document, the correct output is the question the
+user should put to a lawyer, not an answer. This is the same instruction-hierarchy discipline as
+Architecture §4.3, extended from one prompt to a loop.

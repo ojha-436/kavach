@@ -1,15 +1,154 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0b0d10;
-  --foreground: #f5f5f0;
-  --accent: #c65d3b;
-  --void: #b23b3b;
-  --favourable: #3b8a5e;
+/*
+  Kavach design tokens.
+
+  Grounded in Indian legal stationery rather than product-design defaults:
+  judicial stamp paper (that specific cool pale green every Indian rent
+  agreement is printed on), blue-black attestation ink, court-seal maroon,
+  and the brass of a notary plate. Deliberately NOT the Ashoka emblem or
+  the State Emblem in any form - improper use is an offence under the
+  State Emblem of India (Prohibition of Improper Use) Act, 2005.
+*/
+
+@theme {
+  --color-paper: #e8ece4;
+  --color-paper-raised: #f3f5ef;
+  --color-paper-sunk: #dce2d6;
+  --color-rule: #c3ccba;
+
+  --color-ink: #16232e;
+  --color-ink-soft: #4c5b64;
+  --color-ink-faint: #7c8a90;
+
+  /* verdict register */
+  --color-seal: #8e1b2b;
+  --color-seal-wash: #f2dee0;
+  --color-caution: #a2571c;
+  --color-caution-wash: #f5e4d4;
+  --color-brass: #8a6c2a;
+  --color-brass-wash: #efe6cf;
+  --color-favour: #2f6b4f;
+  --color-favour-wash: #dceade;
+
+  /* grounding / citations */
+  --color-attest: #1c4e80;
+  --color-attest-wash: #dde7f3;
+
+  --font-display: var(--font-spectral), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "kern", "liga";
+  }
+
+  /* Judgment and contract text is read, not scanned: give it document
+     proportions - serif, measured line length, generous leading. */
+  .prose-document {
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    max-width: 68ch;
+  }
+
+  .numeral-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--color-attest-wash);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-attest);
+    outline-offset: 2px;
+  }
+}
+
+/*
+  The one bold moment: a verdict landing on a clause like a court stamp.
+  A rule, a seal-coloured label, a slight rotation. No drop shadow, no
+  fake paper texture, no rubber-stamp clipart - the restraint is what
+  keeps it from reading as kitsch.
+*/
+.verdict-stamp {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.7rem;
+  border: 1.5px solid currentColor;
+  border-left-width: 4px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transform: rotate(-1.2deg);
+}
+
+@keyframes stamp-down {
+  from {
+    opacity: 0;
+    transform: rotate(-1.2deg) scale(1.16);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-1.2deg) scale(1);
+  }
+}
+
+.verdict-stamp[data-animate="true"] {
+  animation: stamp-down 260ms cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .verdict-stamp[data-animate="true"] {
+    animation: none;
+  }
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Night registry. The paper identity is primary; this is the reading-late
+   variant, not a separate personality. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-paper: #11181c;
+    --color-paper-raised: #182126;
+    --color-paper-sunk: #0c1216;
+    --color-rule: #2c3940;
+
+    --color-ink: #e6ebe4;
+    --color-ink-soft: #a3b0b3;
+    --color-ink-faint: #74838a;
+
+    --color-seal: #d97382;
+    --color-seal-wash: #3a1a20;
+    --color-caution: #d2924f;
+    --color-caution-wash: #38261492;
+    --color-brass: #c2a45e;
+    --color-brass-wash: #2e2717;
+    --color-favour: #7cc099;
+    --color-favour-wash: #172c22;
+
+    --color-attest: #85b3e0;
+    --color-attest-wash: #16283a;
+  }
 }

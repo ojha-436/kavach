@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { SiteHeader } from "@/components/SiteHeader";
+import { useAuth } from "@/components/AuthProvider";
 import { Clause, DocType } from "@/lib/schema";
 
 type Status = "idle" | "uploading" | "segmenting" | "ready" | "error";
@@ -17,38 +19,39 @@ function contentTypeFor(fileName: string): string | null {
 }
 
 export default function AnalyzePage() {
+  const { user, token } = useAuth();
   const [status, setStatus] = useState<Status>("idle");
-  const [statusDetail, setStatusDetail] = useState<string>("");
+  const [statusDetail, setStatusDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [docType, setDocType] = useState<DocType>("rental");
   const [analysisId, setAnalysisId] = useState<string | null>(null);
-  const [text, setText] = useState<string>("");
+  const [text, setText] = useState("");
   const [clauses, setClauses] = useState<Clause[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const clauseRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [saved, setSaved] = useState(false);
+  const clauseRefs = useRef<Record<string, HTMLSpanElement | null>>({});
 
   async function handleFile(file: File) {
     setError(null);
     const contentType = contentTypeFor(file.name);
     if (!contentType) {
-      setError("Only .pdf and .docx files are supported.");
+      setError("Kavach reads .pdf and .docx files.");
       setStatus("error");
       return;
     }
 
     try {
       setStatus("uploading");
-      setStatusDetail("Requesting upload URL…");
+      setStatusDetail("Preparing a secure upload…");
       const urlRes = await fetch("/api/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileName: file.name, contentType }),
       });
-      if (!urlRes.ok) throw new Error((await urlRes.json()).error ?? "Upload URL failed");
+      if (!urlRes.ok) throw new Error((await urlRes.json()).error ?? "Upload failed");
       const { uploadUrl, gcsUri } = await urlRes.json();
 
-      setStatusDetail("Uploading document…");
+      setStatusDetail("Uploading…");
       const putRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": contentType },
@@ -57,8 +60,8 @@ export default function AnalyzePage() {
       if (!putRes.ok) throw new Error("Upload to storage failed");
 
       setStatus("segmenting");
-      setStatusDetail("Extracting text and splitting into clauses…");
-      const analyzeRes = await fetch("/api/analyze", {
+      setStatusDetail("Splitting the document into clauses…");
+      const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,12 +71,13 @@ export default function AnalyzePage() {
           docTypeHint: docType,
         }),
       });
-      const data = await analyzeRes.json();
-      if (!analyzeRes.ok) throw new Error(data.error ?? "Analysis failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Analysis failed");
 
       setAnalysisId(data.id);
       setText(data.text);
       setClauses(data.clauses);
+      setSaved(false);
       setStatus("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -81,7 +85,21 @@ export default function AnalyzePage() {
     }
   }
 
-  function selectClause(id: string) {
+  async function saveToProfile() {
+    const idToken = await token();
+    if (!idToken || !analysisId) return;
+    const res = await fetch("/api/me", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ analysisId }),
+    });
+    if (res.ok) setSaved(true);
+  }
+
+  function select(id: string) {
     setSelectedId(id);
     clauseRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
@@ -93,9 +111,17 @@ export default function AnalyzePage() {
     let cursor = 0;
     for (const c of sorted) {
       if (c.startOffset > cursor) {
-        parts.push({ key: `gap-${cursor}`, clauseId: null, text: text.slice(cursor, c.startOffset) });
+        parts.push({
+          key: `gap-${cursor}`,
+          clauseId: null,
+          text: text.slice(cursor, c.startOffset),
+        });
       }
-      parts.push({ key: c.id, clauseId: c.id, text: text.slice(c.startOffset, c.endOffset) });
+      parts.push({
+        key: c.id,
+        clauseId: c.id,
+        text: text.slice(c.startOffset, c.endOffset),
+      });
       cursor = c.endOffset;
     }
     if (cursor < text.length) {
@@ -106,127 +132,148 @@ export default function AnalyzePage() {
 
   if (status === "ready") {
     return (
-      <main className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)]">
-        <header className="flex items-center justify-between border-b border-white/10 px-6 py-3">
-          <p className="text-sm text-white/60">
-            KAVACH · {clauses.length} clauses · analysis <code className="text-white/40">{analysisId}</code>
-          </p>
-          <button
-            className="text-sm text-white/50 hover:text-white"
-            onClick={() => {
-              setStatus("idle");
-              setClauses([]);
-              setText("");
-              setSelectedId(null);
-            }}
-          >
-            New document
-          </button>
-        </header>
-        <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1fr_360px]">
-          <div className="overflow-y-auto whitespace-pre-wrap px-8 py-6 text-sm leading-relaxed text-white/80">
-            {segments.map((seg) =>
-              seg.clauseId ? (
-                <span
-                  key={seg.key}
-                  ref={(el) => {
-                    clauseRefs.current[seg.clauseId!] = el as unknown as HTMLDivElement;
-                  }}
-                  onClick={() => selectClause(seg.clauseId!)}
-                  onMouseEnter={() => setHoveredId(seg.clauseId)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  className={`cursor-pointer rounded px-0.5 transition-colors ${
-                    selectedId === seg.clauseId
-                      ? "bg-[var(--accent)]/40"
-                      : hoveredId === seg.clauseId
-                        ? "bg-white/10"
-                        : ""
+      <>
+        <SiteHeader />
+        <main className="mx-auto max-w-6xl px-5">
+          <div className="flex flex-wrap items-center gap-4 border-b border-rule py-4">
+            <p className="font-sans text-sm text-ink-soft numeral-tabular">
+              {clauses.length} clauses found
+            </p>
+            <p className="font-sans text-xs text-ink-faint">
+              No verdicts yet — clause segmentation only.
+            </p>
+            <div className="ml-auto flex items-center gap-4 font-sans text-sm">
+              {user ? (
+                <button
+                  onClick={saveToProfile}
+                  disabled={saved}
+                  className="text-attest underline-offset-4 hover:underline disabled:text-ink-faint disabled:no-underline"
+                >
+                  {saved ? "Saved to your profile" : "Save to my profile"}
+                </button>
+              ) : (
+                <span className="text-ink-faint">
+                  Signed out — this is deleted in 24 hours
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setStatus("idle");
+                  setClauses([]);
+                  setText("");
+                  setSelectedId(null);
+                }}
+                className="text-ink-soft underline-offset-4 hover:text-ink hover:underline"
+              >
+                New document
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-10 py-8 lg:grid-cols-[1fr_320px] lg:gap-12">
+            <div className="prose-document whitespace-pre-wrap text-ink">
+              {segments.map((seg) =>
+                seg.clauseId ? (
+                  <span
+                    key={seg.key}
+                    ref={(el) => {
+                      clauseRefs.current[seg.clauseId!] = el;
+                    }}
+                    onClick={() => select(seg.clauseId!)}
+                    className={`cursor-pointer transition-colors ${
+                      selectedId === seg.clauseId
+                        ? "bg-attest-wash"
+                        : "hover:bg-paper-sunk"
+                    }`}
+                  >
+                    {seg.text}
+                  </span>
+                ) : (
+                  <span key={seg.key} className="text-ink-faint">
+                    {seg.text}
+                  </span>
+                )
+              )}
+            </div>
+
+            <aside className="lg:max-h-[75vh] lg:overflow-y-auto lg:border-l lg:border-rule lg:pl-6">
+              {clauses.map((c, i) => (
+                <button
+                  key={c.id}
+                  onClick={() => select(c.id)}
+                  className={`block w-full border-b border-rule py-3 text-left transition-colors ${
+                    selectedId === c.id ? "bg-attest-wash" : "hover:bg-paper-raised"
                   }`}
                 >
-                  {seg.text}
-                </span>
-              ) : (
-                <span key={seg.key} className="text-white/30">
-                  {seg.text}
-                </span>
-              )
-            )}
+                  <p className="font-sans text-xs text-ink-faint numeral-tabular">
+                    Clause {i + 1}
+                    {c.page ? ` · page ${c.page}` : ""}
+                  </p>
+                  <p className="mt-0.5 font-display text-ink">
+                    {c.heading ?? "Untitled clause"}
+                  </p>
+                </button>
+              ))}
+            </aside>
           </div>
-          <aside className="overflow-y-auto border-t border-white/10 md:border-l md:border-t-0">
-            {clauses.map((c, i) => (
-              <button
-                key={c.id}
-                onClick={() => selectClause(c.id)}
-                onMouseEnter={() => setHoveredId(c.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                className={`block w-full border-b border-white/5 px-4 py-3 text-left text-sm transition-colors ${
-                  selectedId === c.id ? "bg-[var(--accent)]/20" : hoveredId === c.id ? "bg-white/5" : ""
-                }`}
-              >
-                <p className="text-xs text-white/40">
-                  Clause {i + 1}
-                  {c.page ? ` · p.${c.page}` : ""}
-                </p>
-                <p className="mt-0.5 font-medium text-white/90">
-                  {c.heading ?? "Untitled clause"}
-                </p>
-                <p className="mt-0.5 line-clamp-2 text-xs text-white/50">{c.text}</p>
-              </button>
-            ))}
-          </aside>
-        </div>
-      </main>
+        </main>
+      </>
     );
   }
 
+  const working = status === "uploading" || status === "segmenting";
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 px-6 py-24">
-      <div>
-        <p className="text-sm uppercase tracking-[0.2em] text-white/50">Kavach</p>
-        <h1 className="mt-2 text-3xl font-semibold">Upload your document</h1>
-        <p className="mt-2 text-white/60">
-          A rental agreement or employment offer letter, as PDF or DOCX. It stays in{" "}
-          <code className="text-white/40">asia-south1</code> and is deleted after 24 hours.
+    <>
+      <SiteHeader />
+      <main className="mx-auto max-w-xl px-5 py-16">
+        <h1 className="font-display text-3xl font-medium text-ink">
+          Your document
+        </h1>
+        <p className="prose-document mt-4 text-ink-soft">
+          A residential rental agreement or an employment offer letter, as PDF or DOCX.
+          It is processed in asia-south1 and, if you are not signed in, deleted within 24
+          hours.
         </p>
-      </div>
 
-      <div className="flex gap-3">
-        {(["rental", "employment"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setDocType(t)}
-            className={`rounded-full border px-4 py-1.5 text-sm capitalize transition-colors ${
-              docType === t
-                ? "border-[var(--accent)] bg-[var(--accent)]/20 text-white"
-                : "border-white/15 text-white/60 hover:border-white/30"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+        <div className="mt-8 flex gap-2">
+          {(["rental", "employment"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setDocType(t)}
+              className={`border px-4 py-2 font-sans text-sm capitalize transition-colors ${
+                docType === t
+                  ? "border-ink bg-ink text-paper"
+                  : "border-rule text-ink-soft hover:border-ink hover:text-ink"
+              }`}
+            >
+              {t === "rental" ? "Rental agreement" : "Offer letter"}
+            </button>
+          ))}
+        </div>
 
-      <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-white/20 px-6 py-12 text-center hover:border-white/40">
-        <input
-          type="file"
-          accept=".pdf,.docx"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFile(file);
-          }}
-          disabled={status === "uploading" || status === "segmenting"}
-        />
-        <span className="text-white/70">
-          {status === "uploading" || status === "segmenting" ? statusDetail : "Click to choose a file"}
-        </span>
-      </label>
+        <label className="mt-6 flex cursor-pointer items-center justify-center border border-dashed border-rule bg-paper-raised px-6 py-14 text-center transition-colors hover:border-attest">
+          <input
+            type="file"
+            accept=".pdf,.docx"
+            className="hidden"
+            disabled={working}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFile(file);
+            }}
+          />
+          <span className="font-sans text-ink-soft">
+            {working ? statusDetail : "Choose a file"}
+          </span>
+        </label>
 
-      {error && (
-        <p className="rounded-lg border border-[var(--void)]/40 bg-[var(--void)]/10 px-4 py-3 text-sm text-[var(--void)]">
-          {error}
-        </p>
-      )}
-    </main>
+        {error && (
+          <p className="mt-4 border border-seal bg-seal-wash px-4 py-3 font-sans text-sm text-seal">
+            {error}
+          </p>
+        )}
+      </main>
+    </>
   );
 }

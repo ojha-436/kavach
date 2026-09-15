@@ -66,6 +66,7 @@ to a lawyer.
 
 ## Live links
 - **Deployed app:** https://kavach-823065407403.asia-south1.run.app
+  - `/analyze` contract clause segmentation · `/judgments` judgment explainer · `/ask` the agent
 - **Repo:** TODO — local git initialised at `D:\projects\promptwar-kavach`, not yet pushed. GitHub
   push blocked on Day 1 by an invalid/expired credential (`mcp__github` returned "Bad credentials")
   and no `gh` CLI installed. Reconnect GitHub auth (or install/login `gh`), then push.
@@ -90,6 +91,24 @@ to a lawyer.
   uses Flash everywhere instead of a mixed Flash/Pro tier. This is a real quality-vs-residency
   trade-off, not the Flash/Pro split originally planned in §5.2 — worth re-checking Model Garden
   regional availability again closer to judging in case Pro-tier regional access opens up.
+- **2026-09-15** — **Scope widened to three surfaces** (contracts, judgments, agent) plus Google
+  accounts. Full reasoning, verified constraints and the honest cost are in `PLAN.md` §7. Headlines:
+  Gemini Live does not exist in this project (asia-south1 serves exactly three models, none of them
+  Live or native-audio, and Live 404s in `global` and `us-central1` too), so voice is browser speech
+  plus an in-region Flash brain behind `src/lib/voice.ts`. There is no government API for judgment
+  text either — eCourts is CAPTCHA-gated and data.gov.in's judiciary catalog has none — so judgments
+  come from the AWS Open Data mirror (ap-south-1, CC-BY), which is lawful to reproduce under
+  s.52(1)(q) Copyright Act 1957.
+- **2026-09-15** — **Ingest only the judgment body, never law-report headnotes.** SCR PDFs wrap each
+  judgment in editorial apparatus (Issue for Consideration, Headnotes, Case Law Cited, List of Acts,
+  Keywords, Appearances, and a trailing "Headnotes prepared by" credit) which carries its own
+  copyright that s.52(1)(q) does not cover. `prepareJudgmentText` strips it and **fails closed**:
+  if editorial matter is present but the body start cannot be located, the judgment is refused
+  rather than ingested. 3 of 14 in the first batch were refused on exactly that basis.
+- **2026-09-15** — **Paragraph numbers must be the judgment's own, never a synthetic sequence.**
+  Found during Day 2 verification that indices were off by one, so a citation to ¶14 pointed at
+  the judgment's ¶15. For a product whose entire claim is verifiable citation, a lawyer checking
+  one reference and finding the wrong text discredits every other claim on the page.
 - **2026-09-15** — Rule pack v1 drafted (41 rules: 20 rental, 21 employment) covering the seed
   coverage list in `docs/ARCHITECTURE.md` §4.5, validated against the `RuleCard` Zod schema. One
   drafted rule (a wage-discussion confidentiality clause under Article 19) was dropped rather than

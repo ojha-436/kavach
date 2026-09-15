@@ -69,3 +69,70 @@ export async function adjudicate(opts: GenerateOptions): Promise<string> {
 export async function synthesize(opts: GenerateOptions): Promise<string> {
   return generate(opts);
 }
+
+/* ---------- Tool-calling (the agent, Surface C) ---------- */
+
+export type ToolCall = { name: string; args: Record<string, unknown> };
+
+export type TurnResult =
+  | { kind: "text"; text: string }
+  | { kind: "calls"; calls: ToolCall[] };
+
+export type ConversationTurn =
+  | { role: "user"; text: string }
+  | { role: "model"; text: string }
+  | { role: "toolResult"; name: string; result: unknown };
+
+/**
+ * One turn of the agent loop. Returns either the model's prose or the tools
+ * it wants to run — the caller runs them and calls back with the results, so
+ * tool execution stays in our code rather than inside a model abstraction.
+ */
+export async function converse(params: {
+  systemInstruction: string;
+  functionDeclarations: object[];
+  history: ConversationTurn[];
+}): Promise<TurnResult> {
+  const model = client().getGenerativeModel({
+    model: MODEL,
+    systemInstruction: params.systemInstruction,
+    tools: [{ functionDeclarations: params.functionDeclarations }],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
+
+  const contents = params.history.map((turn) => {
+    if (turn.role === "toolResult") {
+      return {
+        role: "user",
+        parts: [
+          {
+            functionResponse: {
+              name: turn.name,
+              response: { result: turn.result },
+            },
+          },
+        ],
+      };
+    }
+    return { role: turn.role, parts: [{ text: turn.text }] };
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = await (model as any).generateContent({ contents });
+  const parts = result.response?.candidates?.[0]?.content?.parts ?? [];
+
+  const calls: ToolCall[] = parts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((p: any) => p.functionCall)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((p: any) => ({
+      name: p.functionCall.name as string,
+      args: (p.functionCall.args ?? {}) as Record<string, unknown>,
+    }));
+
+  if (calls.length > 0) return { kind: "calls", calls };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const text = parts.map((p: any) => p.text ?? "").join("").trim();
+  return { kind: "text", text };
+}
