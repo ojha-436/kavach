@@ -65,8 +65,10 @@ turns on facts outside the document, Kavach refuses and hands the user the preci
 to a lawyer.
 
 ## Live links
-- **Deployed app:** TODO
-- **Repo:** TODO
+- **Deployed app:** https://kavach-823065407403.asia-south1.run.app
+- **Repo:** TODO — local git initialised at `D:\projects\promptwar-kavach`, not yet pushed. GitHub
+  push blocked on Day 1 by an invalid/expired credential (`mcp__github` returned "Bad credentials")
+  and no `gh` CLI installed. Reconnect GitHub auth (or install/login `gh`), then push.
 - **Demo video:** TODO
 
 ## Scope decisions log
@@ -80,5 +82,18 @@ to a lawyer.
   the pitch.
 - **2026-09-15** — Region `asia-south1` (Mumbai) — data residency for a product built around the
   DPDP Act 2023.
-- **2026-09-15** — Model choice deferred to Day 1, pending Vertex AI Model Garden regional
-  availability check. See `docs/ARCHITECTURE.md` §5.2.
+- **2026-09-15** — Model choice resolved: **`gemini-2.5-flash`, region `asia-south1`, for every
+  stage.** Verified live against the `promptwar-501405` project: `gemini-2.5-flash` returns 200 in
+  `asia-south1`; `gemini-2.5-pro` returns 404 there (not served regionally for this project) and
+  only answers on the `global` endpoint. Routing Pro-tier calls through `global` would break the
+  "every service stays in Mumbai" data-residency claim in `docs/ARCHITECTURE.md` §7, so the pipeline
+  uses Flash everywhere instead of a mixed Flash/Pro tier. This is a real quality-vs-residency
+  trade-off, not the Flash/Pro split originally planned in §5.2 — worth re-checking Model Garden
+  regional availability again closer to judging in case Pro-tier regional access opens up.
+- **2026-09-15** — Rule pack v1 drafted (41 rules: 20 rental, 21 employment) covering the seed
+  coverage list in `docs/ARCHITECTURE.md` §4.5, validated against the `RuleCard` Zod schema. One
+  drafted rule (a wage-discussion confidentiality clause under Article 19) was dropped rather than
+  shipped, because Article 19 does not bind private employers and the rule had no solid citable
+  basis — falls short of the "defend it to a lawyer" bar. **The remaining 41 still need the human
+  verification-against-the-bare-act pass `PLAN.md` Day 1 calls for** before being trusted for the
+  demo; treat them as a strong first draft, not a checked rule pack yet.

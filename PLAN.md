@@ -81,21 +81,27 @@ than pushing the day into the next one.
 
 ### Day 1 — Foundations and the moat
 
-- [ ] **Move the repo off OneDrive** to `D:\projects\promptwar-kavach`. OneDrive offloads files
+- [x] **Move the repo off OneDrive** to `D:\projects\promptwar-kavach`. OneDrive offloads files
       inside `node_modules` and will break builds mid-week
-- [ ] `git init`, GitHub repo, fill `docs/HACKATHON.md` from the organiser's rules
-- [ ] GCP project, region `asia-south1`, billing enabled, APIs on:
-      Cloud Run, Vertex AI, Firestore, Cloud Storage, Document AI, Secret Manager, Cloud Build
-- [ ] Next.js 15 skeleton + Dockerfile, **deployed to Cloud Run and reachable**.
-      Deploy on Day 1, never on Day 7
-- [ ] **Rule pack v1**: `rules/rental.json` + `rules/employment.json`, 40–60 rules total
+- [~] `git init` done. GitHub repo **blocked**: `mcp__github` returned "Bad credentials" and no `gh`
+      CLI is installed. `docs/HACKATHON.md` TODOs (deadline, deliverables, judging rubric) still need
+      the organiser's actual rules pasted in — cannot be filled from assumptions
+- [x] GCP project, region `asia-south1`, billing enabled. APIs on: Cloud Run, Vertex AI, Firestore
+      (Native, asia-south1), Cloud Storage, Secret Manager, Cloud Build, Artifact Registry.
+      **Document AI not yet enabled** — deferred with the rest of the OCR cut-list item
+- [x] Next.js 15 skeleton + Dockerfile, **deployed to Cloud Run and reachable**:
+      https://kavach-823065407403.asia-south1.run.app
+- [x] **Rule pack v1**: `rules/rental.json` (20 rules) + `rules/employment.json` (21 rules), 41 total,
+      Zod-validated. **Still needs the human bare-act verification pass** — see next line
 
 > This is the bulk of Day 1 and it is the differentiator. Every rule carries
 > `{ id, doc_type, clause_type, statute, section, authority, default_verdict, plain_english,
 > negotiation_ask, applies_when }`. It cannot be rushed on Day 6, and it cannot be generated — it
-> has to be written by a human who checks each citation against the bare act.
+> has to be written by a human who checks each citation against the bare act. **The 41 rules drafted
+> today are a first pass, not that verification pass — budget time for it before Day 6.**
 
-**DoD:** a public Cloud Run URL serving a page, and a rule pack you would defend to a lawyer.
+**DoD:** a public Cloud Run URL serving a page (done) — a rule pack you would defend to a lawyer
+(drafted, not yet human-verified against the bare act; see above).
 
 ### Day 2 — Ingest and spans (the ugliest plumbing, so do it early)
 
@@ -196,7 +202,11 @@ Close on the refusal:
 
 ## 6. Open decisions
 
-- [ ] **Organiser's required stack and judging rubric.** Blocks final architecture sign-off
-- [ ] Model choice: Gemini (Flash and Pro tiers) vs Claude via Vertex AI Model Garden.
-      See `docs/ARCHITECTURE.md` §5.2. Decide Day 1, after confirming regional availability
-- [ ] Product name: Kavach / Adhikar / Clause Kavach. Pick on Day 1 and stop thinking about it
+- [ ] **Organiser's required stack and judging rubric.** Blocks final architecture sign-off.
+      Still needed from you: submission deadline/timezone, required deliverables, and the rubric —
+      paste them into `docs/HACKATHON.md` when you have them
+- [x] Model choice: **`gemini-2.5-flash` in `asia-south1`, single-tier, everywhere.** Confirmed live
+      that `gemini-2.5-pro` 404s regionally in this project and only serves from `global`; using
+      Flash everywhere keeps the data-residency claim intact instead of splitting Flash/Pro across
+      regions. See `docs/HACKATHON.md` scope log and `src/lib/llm.ts`
+- [x] Product name: **Kavach**. Landing page and repo both use it — stop thinking about it
