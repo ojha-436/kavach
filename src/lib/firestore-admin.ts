@@ -9,6 +9,7 @@ import {
   JudgmentExplanation,
   JudgmentParagraph,
 } from "./schema";
+import type { Synthesis } from "./synthesize";
 
 let db: Firestore | null = null;
 
@@ -128,6 +129,7 @@ export type DocumentReport = {
   missingProtections: ExpectedProtection[];
   unanalysed: string[];
   droppedCitations: number;
+  synthesis?: Synthesis;
   generatedAt: string;
 };
 
@@ -242,38 +244,74 @@ export async function writeJudgment(record: JudgmentRecord): Promise<void> {
     // Lowercased haystack so the keyword tool can match without a separate
     // search service. Body text is included, not just the title: a judgment
     // about staying an arbitral award rarely says so in its case name.
-    // Embedding search (text-multilingual-embedding-002, in-region) is the
-    // Day 5b upgrade.
+    //
+    // Capped deliberately. Search reads this field across many documents, so
+    // an 8 KB haystack per judgment turned every query into megabytes of
+    // reads. 1.5 KB covers the opening paragraphs, where the subject matter
+    // is stated, at a fraction of the cost.
     searchText: [
       record.judgment.title,
       record.judgment.citation ?? "",
       record.judgment.court,
       record.judgment.caseNumber ?? "",
       record.paragraphs
-        .slice(0, 12)
+        .slice(0, 6)
         .map((p) => p.text)
-        .join(" ")
-        .slice(0, 8000),
+        .join(" "),
     ]
       .join(" ")
-      .toLowerCase(),
+      .toLowerCase()
+      .slice(0, 1500),
   });
 
   // Clear existing chunks first: a re-ingest that produces fewer paragraphs
   // would otherwise leave orphaned tail chunks behind, and those would show
   // up as phantom paragraphs that citations could point at.
   const existing = await ref.collection("paragraphs").get();
-  await Promise.all(existing.docs.map((d) => d.ref.delete()));
+
+  // One batched round trip rather than a write per chunk.
+  const batch = db.batch();
+  for (const doc of existing.docs) batch.delete(doc.ref);
 
   // Paragraphs can exceed the 1 MiB document limit on long judgments, so
   // they live in chunked child documents rather than on the parent.
   const CHUNK = 40;
   for (let i = 0; i < record.paragraphs.length; i += CHUNK) {
-    await ref
-      .collection("paragraphs")
-      .doc(String(i / CHUNK))
-      .set({ items: record.paragraphs.slice(i, i + CHUNK) });
+    batch.set(ref.collection("paragraphs").doc(String(i / CHUNK)), {
+      items: record.paragraphs.slice(i, i + CHUNK),
+    });
   }
+  await batch.commit();
+
+  await refreshJudgmentFacets();
+}
+
+/**
+ * Facets are recomputed on ingest and stored, rather than derived by scanning
+ * every judgment each time the search page loads.
+ */
+async function refreshJudgmentFacets(): Promise<void> {
+  const snap = await client()
+    .collection("judgments")
+    .select("court", "year")
+    .get();
+
+  const courts = new Set<string>();
+  const years = new Set<string>();
+  for (const d of snap.docs) {
+    const j = d.data() as { court?: string; year?: string };
+    if (j.court) courts.add(j.court);
+    if (j.year) years.add(j.year);
+  }
+
+  await client()
+    .collection("meta")
+    .doc("judgment-facets")
+    .set({
+      courts: [...courts].sort(),
+      years: [...years].sort((a, b) => Number(b) - Number(a)),
+      updatedAt: new Date().toISOString(),
+    });
 }
 
 export async function getJudgment(id: string): Promise<JudgmentRecord | null> {
@@ -351,12 +389,27 @@ export async function searchJudgments(
     terms.length > 0 || !!caseNo || !!filters.court || !!filters.year;
   if (!hasCriteria) return [];
 
-  const snap = await client().collection("judgments").limit(500).get();
+  // Push court and year into Firestore as indexed equality filters rather
+  // than reading the whole collection and discarding most of it in memory.
+  let q = client()
+    .collection("judgments")
+    .select(
+      "id",
+      "title",
+      "citation",
+      "year",
+      "court",
+      "caseNumber",
+      "searchText"
+    );
+
+  if (filters.court) q = q.where("court", "==", filters.court);
+  if (filters.year) q = q.where("year", "==", filters.year);
+
+  const snap = await q.limit(500).get();
 
   return snap.docs
     .map((d) => d.data() as Judgment & { searchText?: string })
-    .filter((j) => !filters.court || j.court === filters.court)
-    .filter((j) => !filters.year || j.year === filters.year)
     .filter((j) => {
       if (!caseNo) return true;
       const digits = (s: string) => s.replace(/[^0-9]/g, "");
@@ -388,16 +441,15 @@ export async function judgmentFacets(): Promise<{
   courts: string[];
   years: string[];
 }> {
-  const snap = await client().collection("judgments").limit(500).get();
-  const courts = new Set<string>();
-  const years = new Set<string>();
-  for (const d of snap.docs) {
-    const j = d.data() as Judgment;
-    if (j.court) courts.add(j.court);
-    if (j.year) years.add(j.year);
+  // One document read, precomputed at ingest, instead of a collection scan
+  // on every visit to the search page.
+  const snap = await client().collection("meta").doc("judgment-facets").get();
+  if (snap.exists) {
+    const d = snap.data() as { courts?: string[]; years?: string[] };
+    return { courts: d.courts ?? [], years: d.years ?? [] };
   }
-  return {
-    courts: [...courts].sort(),
-    years: [...years].sort((a, b) => Number(b) - Number(a)),
-  };
+  await refreshJudgmentFacets();
+  const rebuilt = await client().collection("meta").doc("judgment-facets").get();
+  const d = (rebuilt.data() ?? {}) as { courts?: string[]; years?: string[] };
+  return { courts: d.courts ?? [], years: d.years ?? [] };
 }

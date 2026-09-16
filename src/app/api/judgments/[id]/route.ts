@@ -26,13 +26,22 @@ export async function GET(
   const explain = sp.get("explain") === "1";
   const lang = sp.get("lang");
 
+  // A judgment's text is immutable once ingested, so it is safe to let the
+  // browser and any CDN in front of Cloud Run hold onto it.
+  const IMMUTABLE = {
+    "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+  };
+
   if (!explain) {
-    return NextResponse.json({
-      judgment: record.judgment,
-      paragraphs: record.paragraphs,
-      attribution: CORPUS_ATTRIBUTION,
-      languages: LANGUAGES,
-    });
+    return NextResponse.json(
+      {
+        judgment: record.judgment,
+        paragraphs: record.paragraphs,
+        attribution: CORPUS_ATTRIBUTION,
+        languages: LANGUAGES,
+      },
+      { headers: IMMUTABLE }
+    );
   }
 
   try {
@@ -83,18 +92,23 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({
-      judgment: record.judgment,
-      paragraphs: record.paragraphs,
-      explanation,
-      translated,
-      translationError,
-      language: translated ? lang : null,
-      droppedClaims,
-      truncated,
-      attribution: CORPUS_ATTRIBUTION,
-      languages: LANGUAGES,
-    });
+    return NextResponse.json(
+      {
+        judgment: record.judgment,
+        paragraphs: record.paragraphs,
+        explanation,
+        translated,
+        translationError,
+        language: translated ? lang : null,
+        droppedClaims,
+        truncated,
+        attribution: CORPUS_ATTRIBUTION,
+        languages: LANGUAGES,
+      },
+      // Don't cache a response that fell back to English after a failed
+      // translation, or the reader is stuck with it for an hour.
+      { headers: translationError ? {} : IMMUTABLE }
+    );
   } catch (err) {
     console.error(`explain ${id} failed`, err);
     return NextResponse.json(

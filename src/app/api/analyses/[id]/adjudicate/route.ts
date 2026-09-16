@@ -12,7 +12,9 @@ import {
 import { typeClauses } from "@/lib/classify-clauses";
 import { adjudicateClauses } from "@/lib/adjudicate";
 import { findMissingProtections } from "@/lib/absence";
+import { synthesizeReport } from "@/lib/synthesize";
 import { DocumentKind } from "@/lib/schema";
+import { getSessionUser } from "@/lib/auth-server";
 
 export const maxDuration = 300;
 
@@ -39,6 +41,16 @@ export async function POST(
   const analysis = await getAnalysis(id);
   if (!analysis) {
     return NextResponse.json({ error: "No such analysis" }, { status: 404 });
+  }
+
+  // Same ownership rule as reading it: once an analysis belongs to someone
+  // it must not be readable — or chargeable — by anyone else.
+  const owner = (analysis as { ownerUid?: string }).ownerUid;
+  if (owner) {
+    const user = await getSessionUser(req);
+    if (user?.uid !== owner) {
+      return NextResponse.json({ error: "No such analysis" }, { status: 404 });
+    }
   }
 
   const kind: DocumentKind = {
@@ -87,12 +99,22 @@ export async function POST(
     const ceiling = Math.max(typed.length, 1) * 15;
     const riskScore = Math.min(100, Math.round((weighted / ceiling) * 100));
 
+    // Stage 6: the actionable outputs.
+    const synthesis = await synthesizeReport({
+      kind,
+      findings,
+      clauses: typed,
+      missing: missingProtections,
+      riskScore,
+    });
+
     const report: DocumentReport = {
       riskScore,
       counts,
       missingProtections,
       unanalysed,
       droppedCitations,
+      synthesis,
       generatedAt: new Date().toISOString(),
     };
 

@@ -33,12 +33,12 @@ absence being structurally invisible to anything that only reads what's there.
 
 ![Kavach home](docs/screenshots/01-home.png)
 
-> **Build status.** The clause pipeline now runs end to end: ingest, segmentation, document-type
-> detection, clause typing, the deterministic rule join, per-clause adjudication with citation
-> validation, and the absence diff. The judgment side — explanation, span-validated citations,
-> translation — is complete, as are Google sign-in and history. Still unbuilt: Stage 6 synthesis
-> (negotiation email, obligations timeline) and OCR for scanned PDFs. The stage table below is
-> authoritative.
+> **Build status.** All seven pipeline stages are built and running: ingest, segmentation,
+> document-type detection, clause typing, the deterministic rule join, per-clause adjudication with
+> citation validation, the absence diff, and synthesis. Plus document comparison, the judgment
+> explainer with span-validated citations and translation into twelve languages, Google sign-in,
+> and history. Still unbuilt: OCR for scanned PDFs, and an obligations timeline. The stage table
+> below is authoritative.
 
 ---
 
@@ -74,7 +74,29 @@ announce that your contract is "missing a non-compete clause".)
 
 ![Missing protections](docs/screenshots/08-missing-protections.png)
 
-### 3 · Ask, with the sources shown
+### 3 · Get something you can act on
+
+A summary, a prioritised checklist, and a draft email to the other party.
+
+The checklist is **not generated** — it is assembled from the `negotiationAsk`
+already carried by each validated finding and each curated protection, so every
+action traces back to a checked citation. Only the prose goes through a model,
+and it is handed the asks rather than the document.
+
+![Checklist and summary](docs/screenshots/09-action-report.png)
+
+### 4 · Compare two documents
+
+Two offers, two tenancy agreements, or the same contract before and after their
+edits. Compared topic by topic, and against the protections a document of this
+kind should contain.
+
+Deterministic — it uses the clause types and verdicts the analyses already
+produced, so it cannot claim a difference the underlying documents don't have.
+
+![Comparing two agreements](docs/screenshots/10-compare.png)
+
+### 5 · Ask, with the sources shown
 
 Questions are answered beside the document itself. Every answer lists which tools produced it —
 read the document, looked up the statute, read the judgment — so the grounding claim can be
@@ -82,7 +104,7 @@ read the document, looked up the statute, read the judgment — so the grounding
 
 ![Ask about a document](docs/screenshots/06-ask.png)
 
-### 4 · Understand a judgment
+### 6 · Understand a judgment
 
 A judgment runs to a hundred pages before it says who won. Kavach sets out what the court was
 asked, what it decided, why, and what it expressly **does not** decide — with every line traceable
@@ -94,7 +116,7 @@ Search by subject or party, and filter by court, year, or case number.
 
 ![Judgment search](docs/screenshots/02-judgments-search.png)
 
-### 5 · Read it in your own language
+### 7 · Read it in your own language
 
 Explanations translate into twelve Indian languages. Terms of art keep the English in brackets, and
 **paragraph citations are reattached from the validated English original** — so a translation error
@@ -181,7 +203,7 @@ AI calls, not from more services.
 | **3 · Rule retrieval** | `(docType, clauseType)` → `RuleCard[]` | **deterministic** | ✅ built |
 | **4 · Adjudication** | Per clause: verdict, severity, plain English, statutory basis, negotiation ask | Flash | ✅ built |
 | **5 · Absence diff** | Curated expected protections − topics the document covers | **deterministic** | ✅ built |
-| **6 · Synthesis** | Negotiation email, obligations timeline | Flash | ⬜ not built — risk score and verdict counts are computed, the drafting is not |
+| **6 · Synthesis** | Summary, prioritised checklist, negotiation email, lawyer questions | Flash + **deterministic** | ✅ built — the checklist and lawyer questions need no model at all |
 | **7 · Grounded Q&A** | The agent's tool loop | Flash | ✅ built |
 
 The clause — not the document — is the unit of context. Nothing ever sees 40 pages and is asked to
@@ -232,7 +254,7 @@ sit in Mumbai too.
 ### Testing
 
 ```bash
-npm test          # 56 tests
+npm test          # 70 tests
 npm run lint      # eslint + jsx-a11y + react-hooks
 npx tsc --noEmit  # type check
 ```
@@ -248,6 +270,8 @@ because a specific bug got through first:
 | `absence.test.ts` | Secondary clause topics count as covered; no clause type the reader wouldn't want is ever reported "missing" |
 | `rules.test.ts` | Rule-pack integrity: unique ids, no cross-document leakage, every expected-protection keyed to a real taxonomy entry |
 | `rate-limit.test.ts` | Per-caller and per-bucket isolation, window expiry, unidentified callers still limited |
+| `compare.test.ts` | Severity ranking is from the reader's side; a missing protection counts against the document lacking it; secondary topics count as present; no difference is reported that neither document contains |
+| `synthesize.test.ts` | The checklist is a projection of validated findings and carries their citations; unenforceable terms outrank one-sided ones; nothing is invented when there is nothing to ask for |
 
 Two of these were written from real regressions: paragraph indices were once
 off by one (so a citation to ¶14 resolved to ¶15), and 7 of 11 Supreme Court
@@ -268,7 +292,9 @@ CI runs lint, types, tests and build on every push.
 | Upload size cap + bucket pinning | 15 MB; reads are refused from any bucket but our own |
 | Ownership checks | A saved analysis 404s for anyone but its owner — obscurity alone stops being enough once it no longer expires |
 | Prompt injection | Document and judgment text is wrapped as untrusted data and declared non-instruction in the system layer |
-| Security headers | `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS |
+| Security headers | CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS |
+| Request size limits | 15 MB upload, 4,000-character questions, 20-turn conversations — an unbounded prompt is both a cost problem and a way to bury instructions far from the system layer |
+| Dependency posture | `npm audit` is clean of **critical** findings. The 10 remaining are transitive inside Google's own Cloud SDKs (`uuid@9`, `teeny-request`) with no upstream fix available; none are reachable from user input |
 
 The Firebase web API key in `firebase-client.ts` is public by design — it ships
 in the client bundle regardless, and access is controlled by the rules above.
@@ -303,6 +329,15 @@ these survived to production.
   judgment's text never changes, so its explanation is a pure function of it;
   regenerating per page view cost ~25s and real money for identical output.
   Measured on the live service: **25.35s → 0.23s.**
+- **Search pushes filters into Firestore** as indexed equality queries instead
+  of reading the collection and discarding most of it in memory, and the
+  per-judgment search haystack is capped at 1.5 KB — it was 8 KB, which turned
+  every query into megabytes of reads.
+- **Facets are precomputed** at ingest into one document, rather than scanned
+  out of the whole collection on every visit to the search page.
+- Judgment reads carry `Cache-Control` — the text is immutable once ingested.
+- Paragraph writes go in a single batch rather than a round trip per chunk.
+- `min-instances=1` on Cloud Run, so an evaluator never meets a cold start.
 - Adjudication runs one call per clause in parallel via `Promise.all`, scoped
   to ~2k tokens each rather than one 40-page prompt.
 - Stage 3 and Stage 5 are deterministic — no model call at all.
@@ -415,10 +450,10 @@ Stated plainly, because a tool that hides its edges can't be trusted at its cent
 | Simplifying complex legal documents | Clause segmentation + plain-English per-clause findings |
 | Highlighting important clauses, obligations, risks | Verdicts tinting the document itself, ranked by severity, with a risk score |
 | Answering questions based on provided legal documents | The Ask panel, answering only from tool output over *your* document |
-| Helping users understand their options and next steps | `negotiationAsk` — the exact counter-language to request, per clause |
-| Generating summaries, checklists, actionable outputs | The missing-protections list, each with what its absence costs and what to ask for |
+| Helping users understand their options and next steps | `negotiationAsk` per clause, plus the ranked checklist of what to do before signing |
+| Generating summaries, checklists, actionable outputs | Stage 6: a plain-English summary, a prioritised pre-signing checklist, and a draft negotiation email — all copyable |
 | Helping users prepare questions for a legal professional | `ask_a_lawyer` as a first-class tool, and `lawyerQuestion` on any finding that turns on outside facts |
-| Comparing contracts, agreements, policies | **Partly.** Your document is compared against a curated statutory baseline and against the protections it should contain — but there is no document-to-document diff |
+| Comparing contracts, agreements, policies | `/compare` — two documents diffed topic by topic, plus each against the statutory baseline and the protections it should contain |
 
 > *"Solutions should provide information and assistance, rather than replace
 > professional legal advice."*

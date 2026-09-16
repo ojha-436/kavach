@@ -171,6 +171,12 @@ the 24h deletion promised in the privacy pitch until now).
       working state. Clauses do not yet light up one by one — the Firestore snapshot listener is
       still the nicer version of this and is not built
 
+- [x] **Document comparison** (`/compare`) — added to close the problem statement's "comparing
+      contracts, agreements, or policies" bullet, which nothing in the build addressed. Deterministic:
+      it diffs the clause types and verdicts the two analyses already produced, so it cannot claim a
+      difference the documents do not contain. Ranking is from the reader's side — a VOID term counts
+      as worse than a merely one-sided one, because the reader is likely to comply either way.
+
 **DoD:** met. A deliberately bad rental agreement returns 1 VOID (court-ouster clause, S.28 ICA),
 3 partly unenforceable (deposit cap, eviction without notice, unstamped), 4 one-sided, risk score
 41/100, **zero dropped citations**, 1 of 10 clauses correctly left unanalysed as outside the pack.
@@ -180,8 +186,12 @@ the 24h deletion promised in the privacy pitch until now).
 - [x] Stage 5 absence diff — **deterministic, no model call.** Curated `expected-protections.json`
       minus every topic the document covers. Cannot invent a missing protection, cannot fail to
       notice one
-- [~] Stage 6 synthesis: risk score and verdict counts are computed and shown. Negotiation email
-      and obligations timeline are not built
+- [x] Stage 6 synthesis — summary, prioritised pre-signing checklist, negotiation email draft, and
+      the collected lawyer questions. **The checklist and lawyer questions need no model call**: they
+      are a projection of the `negotiationAsk` and `lawyerQuestion` fields already carried by
+      validated findings and curated protections, so every action traces to a checked citation. Only
+      the summary and email prose go through the model, and it is handed the asks rather than the
+      document. Obligations timeline still not built
 - [x] A report screen worth screenshotting
 
 > The absence diff is **not** a plain set difference over the rule pack, which is what the original

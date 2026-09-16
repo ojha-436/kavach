@@ -31,7 +31,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${spectral.variable} ${plex.variable}`}>
+    // suppressHydrationWarning because the inline theme script sets
+    // data-theme on <html> before React hydrates — intentionally, to avoid a
+    // flash of the light palette. The server cannot know the stored theme, so
+    // the attribute legitimately differs between render and hydration.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${spectral.variable} ${plex.variable}`}
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

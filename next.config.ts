@@ -26,10 +26,43 @@ const nextConfig: NextConfig = {
    * and should not let a browser sniff a response into a different type.
    */
   async headers() {
+    /**
+     * Content Security Policy.
+     *
+     * `script-src` carries 'unsafe-inline' deliberately, and it is worth
+     * saying why rather than leaving it looking careless. A nonce-based
+     * policy is stronger, but nonces are per-request and most of this app is
+     * statically prerendered — the HTML is built once, so there is no request
+     * in which to stamp a nonce. Forcing every page dynamic to enable nonces
+     * would trade real, measurable performance for a hardening step whose
+     * benefit here is small: the untrusted text this app renders (contracts,
+     * judgments) goes through React, which escapes it, and there is no
+     * dangerouslySetInnerHTML anywhere near user or document content.
+     *
+     * Everything else is locked down: no external script origins, no plugins,
+     * no framing, no form posts off-origin, and connect-src limited to the
+     * Google APIs this actually talks to.
+     */
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.googleusercontent.com",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.googleapis.com https://*.google.com https://storage.googleapis.com",
+      "frame-src 'self' https://promptwar-501405.firebaseapp.com https://accounts.google.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
     return [
       {
         source: "/:path*",
         headers: [
+          { key: "Content-Security-Policy", value: csp },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

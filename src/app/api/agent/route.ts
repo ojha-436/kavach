@@ -21,6 +21,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "message is required" }, { status: 400 });
   }
 
+  // Bound what reaches the model. Without a cap, one request can carry an
+  // arbitrarily large prompt — a cost and latency problem, and a way to
+  // bury instructions far from the system layer.
+  const MAX_MESSAGE = 4000;
+  const MAX_HISTORY = 20;
+  if (message.length > MAX_MESSAGE) {
+    return NextResponse.json(
+      { error: `Questions are limited to ${MAX_MESSAGE} characters.` },
+      { status: 413 }
+    );
+  }
+  if (history.length > MAX_HISTORY) {
+    return NextResponse.json(
+      { error: "That conversation is too long. Start a new one." },
+      { status: 413 }
+    );
+  }
+
   const turns: ConversationTurn[] = [
     ...(history as ConversationTurn[]),
     { role: "user", text: message },

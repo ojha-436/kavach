@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AskPanel } from "@/components/AskPanel";
+import { ActionReport, type Synthesis } from "@/components/ActionReport";
 import { useAuth } from "@/components/AuthProvider";
 import {
   FindingCard,
@@ -55,6 +56,7 @@ export default function AnalyzePage() {
     riskScore: number;
     counts: Record<string, number>;
     unanalysed: string[];
+    synthesis?: Synthesis;
   } | null>(null);
 
   async function adjudicate(id: string) {
@@ -325,6 +327,8 @@ export default function AnalyzePage() {
           )}
 
           <MissingProtections protections={missing} />
+
+          {report?.synthesis && <ActionReport synthesis={report.synthesis} />}
 
           {report && report.unanalysed.length > 0 && (
             <p className="mt-8 border-t border-rule pt-5 font-sans text-xs text-ink-faint">
