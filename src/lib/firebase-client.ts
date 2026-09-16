@@ -20,14 +20,15 @@ import {
  */
 const firebaseConfig = {
   apiKey: "AIzaSyAGR3gKivNJlDIWmq-DPDVIQEd5SSeR-3c",
-  // Point authDomain at whatever origin is actually serving the app, so the
-  // sign-in handler is same-origin. next.config.ts rewrites /__/auth/* to
-  // Firebase's real handler. Falls back to the Firebase-hosted domain for
-  // any non-browser context.
-  authDomain:
-    typeof window !== "undefined"
-      ? window.location.hostname
-      : "promptwar-501405.firebaseapp.com",
+  // Must stay the Firebase-hosted domain. Pointing this at our own Cloud Run
+  // host makes the SDK use https://<our-host>/__/auth/handler as the OAuth
+  // redirect_uri, which is not registered on the OAuth client, and Google
+  // rejects the sign-in with redirect_uri_mismatch. Only the firebaseapp.com
+  // handler is registered by default.
+  //
+  // Serving the handler from our own origin is possible, but it requires
+  // adding that redirect URI to the OAuth client in the Cloud console first.
+  authDomain: "promptwar-501405.firebaseapp.com",
   projectId: "promptwar-501405",
   storageBucket: "promptwar-501405.firebasestorage.app",
   messagingSenderId: "823065407403",

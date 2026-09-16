@@ -10,14 +10,15 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdfjs-dist", "firebase-admin"],
 
   /**
-   * Serve Firebase's auth handler from our own origin.
+   * Proxies Firebase's auth handler onto our own origin.
    *
-   * By default the SDK sends the sign-in popup to
-   * promptwar-501405.firebaseapp.com/__/auth/handler. That is a different
-   * site from the app, so completing sign-in depends on third-party cookies
-   * and cross-site storage — which browsers now partition by default, and
-   * which is the usual reason a correctly configured popup sign-in still
-   * fails. Proxying the handler here makes the whole flow same-origin.
+   * Currently unused: src/lib/firebase-client.ts keeps authDomain pointed at
+   * promptwar-501405.firebaseapp.com, because the Cloud Run handler URL is
+   * not a registered OAuth redirect URI. Kept because it is the other half
+   * of a same-origin sign-in flow — add
+   * https://kavach-823065407403.asia-south1.run.app/__/auth/handler to the
+   * OAuth client's authorized redirect URIs, flip authDomain to the app's
+   * own host, and the flow stops depending on third-party cookies.
    */
   async rewrites() {
     return [
