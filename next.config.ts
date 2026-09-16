@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   // webpack bundling cleanly, same class of problem as pdfjs-dist's worker.
   serverExternalPackages: ["pdfjs-dist", "firebase-admin"],
 
+  // Google account avatars, so next/image can optimise and serve them
+  // rather than shipping a raw <img> at whatever size Google returns.
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "*.googleusercontent.com" },
+    ],
+  },
+
   /**
    * Proxies Firebase's auth handler onto our own origin.
    *

@@ -21,15 +21,56 @@
  * behind this same interface without touching the agent.
  */
 
+/*
+ * The Web Speech API has no lib.dom typing, so the surface this file uses is
+ * declared here. "No types exist upstream" is a reason to write the shape
+ * down once, not a reason to reach for `any` at every call site — these are
+ * the five members actually touched, and a typo in any of them is now a
+ * compile error rather than a silent runtime failure.
+ */
+interface SpeechRecognitionAlternative {
+  readonly transcript: string;
+}
+
+interface SpeechRecognitionResult {
+  readonly isFinal: boolean;
+  readonly length: number;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionEventLike {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+type SpeechCapableWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionCtor;
+  webkitSpeechRecognition?: SpeechRecognitionCtor;
+};
+
 type SpeechResultHandler = (transcript: string, isFinal: boolean) => void;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnySpeechRecognition = any;
-
-function recognitionCtor(): AnySpeechRecognition | null {
+function recognitionCtor(): SpeechRecognitionCtor | null {
   if (typeof window === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const w = window as any;
+  const w = window as SpeechCapableWindow;
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
@@ -52,13 +93,13 @@ export function startListening(
   recognition.interimResults = true;
   recognition.continuous = false;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  recognition.onresult = (event: any) => {
+  recognition.onresult = (event) => {
     let transcript = "";
     let isFinal = false;
     for (let i = event.resultIndex; i < event.results.length; i++) {
-      transcript += event.results[i][0].transcript;
-      if (event.results[i].isFinal) isFinal = true;
+      const result = event.results[i];
+      transcript += result[0].transcript;
+      if (result.isFinal) isFinal = true;
     }
     onResult(transcript, isFinal);
   };

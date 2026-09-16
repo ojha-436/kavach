@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import { ThemeToggle } from "./ThemeToggle";
@@ -60,10 +61,11 @@ export function SiteHeader() {
           {loading ? null : user ? (
             <>
               {user.photoURL ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={user.photoURL}
                   alt=""
+                  width={28}
+                  height={28}
                   className="size-7 rounded-full border border-rule"
                 />
               ) : null}
