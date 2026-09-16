@@ -15,7 +15,7 @@ type Result = {
 };
 
 export default function JudgmentsPage() {
-  const { token } = useAuth();
+  const { authedFetch } = useAuth();
   const [query, setQuery] = useState("");
   const [court, setCourt] = useState("");
   const [year, setYear] = useState("");
@@ -47,10 +47,7 @@ export default function JudgmentsPage() {
       if (year) params.set("year", year);
       if (caseNumber.trim()) params.set("caseNumber", caseNumber.trim());
 
-      const idToken = await token();
-      const res = await fetch(`/api/judgments?${params}`, {
-        headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
-      });
+      const res = await authedFetch(`/api/judgments?${params}`);
       const data = await res.json();
       setResults(data.results ?? []);
     } catch {

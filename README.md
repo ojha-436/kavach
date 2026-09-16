@@ -254,7 +254,8 @@ sit in Mumbai too.
 ### Testing
 
 ```bash
-npm test          # 70 tests
+npm test          # 76 unit tests
+npm run test:e2e  # 14 browser tests, incl. axe on every page in both themes
 npm run lint      # eslint + jsx-a11y + react-hooks
 npx tsc --noEmit  # type check
 ```
@@ -278,7 +279,16 @@ off by one (so a citation to ¶14 resolved to ¶15), and 7 of 11 Supreme Court
 judgments were misfiled as High Court ones because the text heuristic matched
 the High Court order under appeal. Both now fail loudly if reintroduced.
 
-CI runs lint, types, tests and build on every push.
+**Accessibility is tested, not asserted.** `e2e/accessibility.spec.ts` runs
+axe against every page in both light and dark themes at WCAG 2.1 AA, plus
+behavioural checks: the skip link works, the upload control is focusable, focus
+is visibly indicated, and the theme toggle exposes its state. That suite caught
+a contrast failure I had already "fixed" once — my hand calculation said 4.54:1,
+the browser measured 4.46:1 against a 4.5 requirement. The token is now chosen
+from measured ratios with headroom on every surface it is painted on.
+
+CI runs lint, types, unit tests, build, the browser suite, and a production
+dependency audit on every push.
 
 ### Security
 
@@ -343,7 +353,9 @@ these survived to production.
 - Stage 3 and Stage 5 are deterministic — no model call at all.
 - Clause typing is batched 10 per request.
 - `AuthProvider` context is memoised; without it the judgment explanation
-  request fired twice per page load.
+  request fired twice per page load. It also exposes a single `authedFetch`,
+  replacing six hand-rolled copies of the token-attaching pattern — each of
+  which was a chance to forget it and silently lose an ownership check.
 
 ## Stack
 

@@ -47,7 +47,7 @@ export default function JudgmentPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { token } = useAuth();
+  const { authedFetch } = useAuth();
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState("");
@@ -57,16 +57,13 @@ export default function JudgmentPage({
 
   const load = useCallback(
     async (language: string) => {
-      const idToken = await token();
       const qs = language ? `&lang=${language}` : "";
-      const res = await fetch(`/api/judgments/${id}?explain=1${qs}`, {
-        headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
-      });
+      const res = await authedFetch(`/api/judgments/${id}?explain=1${qs}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not load this judgment.");
       return json as Payload;
     },
-    [id, token]
+    [id, authedFetch]
   );
 
   useEffect(() => {

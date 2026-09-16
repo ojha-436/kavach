@@ -42,21 +42,18 @@ function dayOf(iso: string): string {
 }
 
 export default function HistoryPage() {
-  const { user, loading, signIn, token } = useAuth();
+  const { user, loading, signIn, authedFetch } = useAuth();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const idToken = await token();
-    if (!idToken) {
+    if (!user) {
       setEntries([]);
       return;
     }
     try {
-      const res = await fetch("/api/history", {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
+      const res = await authedFetch("/api/history");
       const data = await res.json();
       setEntries(data.entries ?? []);
     } catch {
@@ -64,21 +61,16 @@ export default function HistoryPage() {
       setEntries([]);
       setError("Couldn't load your history. Please refresh.");
     }
-  }, [token]);
+  }, [user, authedFetch]);
 
   useEffect(() => {
     if (!loading) void load();
   }, [loading, user, load]);
 
   async function clearAll() {
-    const idToken = await token();
-    if (!idToken) return;
     setBusy(true);
     try {
-      await fetch("/api/history", {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
+      await authedFetch("/api/history", { method: "DELETE" });
       setEntries([]);
     } finally {
       setBusy(false);

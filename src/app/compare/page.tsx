@@ -54,7 +54,7 @@ const VERDICT_TONE: Record<string, string> = {
 };
 
 export default function ComparePage() {
-  const { token } = useAuth();
+  const { authedFetch } = useAuth();
   const [slots, setSlots] = useState<Partial<Record<Slot, SlotState>>>({});
   const [comparison, setComparison] = useState<Comparison | null>(null);
   const [comparing, setComparing] = useState(false);
@@ -106,14 +106,9 @@ export default function ComparePage() {
       if (!put.ok) throw new Error("Upload to storage failed");
 
       set({ status: "analysing", detail: "Reading the document…" });
-      const idToken = await token();
-      const auth: Record<string, string> = idToken
-        ? { Authorization: `Bearer ${idToken}` }
-        : {};
-
-      const res = await fetch("/api/analyze", {
+      const res = await authedFetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gcsUri, fileName: file.name, contentType }),
       });
       const data = await res.json();
@@ -126,9 +121,9 @@ export default function ComparePage() {
       });
 
       if (data.covered) {
-        await fetch(`/api/analyses/${data.id}/adjudicate`, {
+        await authedFetch(`/api/analyses/${data.id}/adjudicate`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...auth },
+          headers: { "Content-Type": "application/json" },
           body: "{}",
         });
       }
@@ -146,13 +141,9 @@ export default function ComparePage() {
     setComparing(true);
     setError(null);
     try {
-      const idToken = await token();
-      const res = await fetch("/api/compare", {
+      const res = await authedFetch("/api/compare", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ a: slots.a.analysisId, b: slots.b.analysisId }),
       });
       const data = await res.json();

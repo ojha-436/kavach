@@ -19,9 +19,13 @@
 
   --color-ink: #16232e;
   --color-ink-soft: #4c5b64;
-  /* Darkened from #7c8a90, which measured 2.98:1 on paper and failed WCAG
-     AA everywhere it was used — and it is used for most secondary text. */
-  --color-ink-faint: #5f6d74;
+  /* Secondary text, and the token most used across the app.
+     #7c8a90 measured 2.98:1 on paper — a clear AA failure.
+     #5f6d74 measured 4.46:1 — still a failure, and one a hand calculation
+     said was fine. Now measured rather than estimated: 5.46 on paper,
+     5.95 on raised, 4.94 on sunk, so it clears AA on every surface it is
+     actually painted on, with headroom rather than to three decimal places. */
+  --color-ink-faint: #516066;
 
   /* verdict register. These carry meaning, so they have to stay legible:
      each is tuned to clear 4.5:1 on both paper and its own wash. */

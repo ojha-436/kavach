@@ -33,7 +33,7 @@ function contentTypeFor(fileName: string): string | null {
 }
 
 export default function AnalyzePage() {
-  const { user, token } = useAuth();
+  const { user, authedFetch } = useAuth();
   const [status, setStatus] = useState<Status>("idle");
   const [statusDetail, setStatusDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export default function AnalyzePage() {
     setJudging(true);
     setJudgeError(null);
     try {
-      const res = await fetch(`/api/analyses/${id}/adjudicate`, {
+      const res = await authedFetch(`/api/analyses/${id}/adjudicate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -132,13 +132,9 @@ export default function AnalyzePage() {
 
       setStatus("working");
       setStatusDetail("Identifying the document and splitting it into clauses…");
-      const idToken = await token();
-      const res = await fetch("/api/analyze", {
+      const res = await authedFetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gcsUri, fileName: file.name, contentType }),
       });
       const data = await res.json();

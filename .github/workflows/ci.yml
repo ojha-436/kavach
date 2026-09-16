@@ -26,8 +26,41 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Test
+      - name: Unit tests
         run: npm test
 
       - name: Build
         run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Runs axe against every page in both themes, against the production
+      # build — a claim that the app is accessible should be one CI can fail.
+      - name: Accessibility and end-to-end tests
+        run: npm run test:e2e
+
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Fails only on critical advisories. The open moderate/high findings are
+      # transitive inside Google's Cloud SDKs with no upstream fix, and are
+      # documented in SECURITY.md — failing the build on them would just train
+      # everyone to ignore a red tick.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical

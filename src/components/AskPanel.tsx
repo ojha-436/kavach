@@ -34,12 +34,13 @@ export function AskPanel({
   title: string;
   blurb: string;
 }) {
-  const { token } = useAuth();
+  const { authedFetch } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceOut, setVoiceOut] = useState(false);
+  const voiceOutRef = useRef(false);
   const stopRef = useRef<(() => void) | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -56,13 +57,9 @@ export function AskPanel({
     setBusy(true);
 
     try {
-      const idToken = await token();
-      const res = await fetch("/api/agent", {
+      const res = await authedFetch("/api/agent", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: question, analysisId, judgmentId }),
       });
       const data = await res.json();
@@ -71,7 +68,7 @@ export function AskPanel({
         ...m,
         { role: "assistant", text: answer, steps: data.steps ?? [] },
       ]);
-      if (voiceOut && res.ok) speak(answer);
+      if (voiceOutRef.current && res.ok) speak(answer);
     } catch {
       setMessages((m) => [
         ...m,
@@ -202,6 +199,7 @@ export function AskPanel({
             checked={voiceOut}
             onChange={(e) => {
               setVoiceOut(e.target.checked);
+              voiceOutRef.current = e.target.checked;
               if (!e.target.checked) stopSpeaking();
             }}
           />

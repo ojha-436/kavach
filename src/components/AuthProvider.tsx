@@ -25,6 +25,12 @@ type AuthState = {
   dismissError: () => void;
   /** Bearer token for our own API routes; null when signed out. */
   token: () => Promise<string | null>;
+  /**
+   * fetch with the caller's ID token attached when signed in. Every page was
+   * re-implementing this pairing, and each copy was a chance to forget it and
+   * silently lose ownership checks or history.
+   */
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>;
 };
 
 const Ctx = createContext<AuthState>({
@@ -35,6 +41,7 @@ const Ctx = createContext<AuthState>({
   signOut: async () => {},
   dismissError: () => {},
   token: async () => null,
+  authedFetch: (input, init) => fetch(input, init),
 });
 
 /**
@@ -107,6 +114,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user]
   );
 
+  const authedFetch = useCallback(
+    async (input: string, init: RequestInit = {}) => {
+      const idToken = user ? await user.getIdToken() : null;
+      const headers = new Headers(init.headers);
+      if (idToken) headers.set("Authorization", `Bearer ${idToken}`);
+      return fetch(input, { ...init, headers });
+    },
+    [user]
+  );
+
   /**
    * Memoised deliberately. These closures are dependencies of `useCallback`
    * loaders in the judgment and history pages; rebuilding them on every
@@ -122,8 +139,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut: doSignOut,
       dismissError,
       token,
+      authedFetch,
     }),
-    [user, loading, error, doSignIn, doSignOut, dismissError, token]
+    [user, loading, error, doSignIn, doSignOut, dismissError, token, authedFetch]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
