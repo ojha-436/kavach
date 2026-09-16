@@ -1,0 +1,29 @@
+rules_version = '2';
+
+/**
+ * Kavach Firestore rules.
+ *
+ * Every read and write in this product goes through the Next.js server using
+ * the Admin SDK, which bypasses these rules entirely. No browser code ever
+ * touches Firestore directly.
+ *
+ * That makes total denial the correct posture, not a placeholder. The
+ * Firebase web API key ships in the client bundle and is public by design,
+ * so without this any visitor could read uploaded contracts and user history
+ * straight out of the database with that key alone.
+ *
+ * Verified against the live deployment: anonymous reads of `analyses` and
+ * `users`, and an anonymous write to `judgments`, all return 403
+ * PERMISSION_DENIED.
+ *
+ * If a future version moves live progress to a client onSnapshot listener
+ * (Architecture SS2), this file is where that access gets opened — narrowly,
+ * to a single analysis document, and never to the collection.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

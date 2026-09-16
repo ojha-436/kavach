@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJudgment, recordActivity } from "@/lib/firestore-admin";
+import {
+  getJudgment,
+  recordActivity,
+  getCachedExplanation,
+  putCachedExplanation,
+} from "@/lib/firestore-admin";
 import { explainJudgment } from "@/lib/explain-judgment";
 import { CORPUS_ATTRIBUTION } from "@/lib/judgments";
 import { translateExplanation, isSupportedLanguage, LANGUAGES } from "@/lib/translate";
@@ -31,15 +36,33 @@ export async function GET(
   }
 
   try {
-    const { explanation, droppedClaims, truncated } = await explainJudgment(
-      record.paragraphs
-    );
+    // A judgment's text never changes, so its explanation is a pure function
+    // of it. Regenerating per page view cost ~25s and real money for
+    // byte-identical output.
+    let cached = await getCachedExplanation(id, "en");
+    if (!cached) {
+      const fresh = await explainJudgment(record.paragraphs);
+      cached = { ...fresh, generatedAt: new Date().toISOString() };
+      await putCachedExplanation(id, "en", cached);
+    }
+    const { explanation, droppedClaims, truncated } = cached;
 
     let translated = null;
     let translationError: string | null = null;
     if (lang && isSupportedLanguage(lang)) {
       try {
-        translated = await translateExplanation(explanation, lang);
+        const cachedTranslation = await getCachedExplanation(id, lang);
+        if (cachedTranslation) {
+          translated = cachedTranslation.explanation;
+        } else {
+          translated = await translateExplanation(explanation, lang);
+          await putCachedExplanation(id, lang, {
+            explanation: translated,
+            droppedClaims,
+            truncated,
+            generatedAt: new Date().toISOString(),
+          });
+        }
       } catch (err) {
         console.error(`translation to ${lang} failed`, err);
         translationError =

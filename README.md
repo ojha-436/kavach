@@ -227,6 +227,89 @@ sit in Mumbai too.
 
 ---
 
+## Engineering
+
+### Testing
+
+```bash
+npm test          # 56 tests
+npm run lint      # eslint + jsx-a11y + react-hooks
+npx tsc --noEmit  # type check
+```
+
+The suite covers the logic the product's claims rest on, and most of it exists
+because a specific bug got through first:
+
+| Area | What it pins down |
+|---|---|
+| `adjudicate.test.ts` | A fabricated `ruleId` is deleted; statute and section are re-derived from the pack; a finding that loses every citation is downgraded to LOW and flagged for a lawyer |
+| `explain-judgment.test.ts` | Unresolvable paragraph citations are stripped, uncited claims deleted, drops counted per section |
+| `judgments.test.ts` | Editorial matter is stripped and ingest **fails closed**; paragraph indices match the judgment's own numbering; offsets slice back exactly; an SC judgment is never misfiled as a High Court one |
+| `absence.test.ts` | Secondary clause topics count as covered; no clause type the reader wouldn't want is ever reported "missing" |
+| `rules.test.ts` | Rule-pack integrity: unique ids, no cross-document leakage, every expected-protection keyed to a real taxonomy entry |
+| `rate-limit.test.ts` | Per-caller and per-bucket isolation, window expiry, unidentified callers still limited |
+
+Two of these were written from real regressions: paragraph indices were once
+off by one (so a citation to ¶14 resolved to ¶15), and 7 of 11 Supreme Court
+judgments were misfiled as High Court ones because the text heuristic matched
+the High Court order under appeal. Both now fail loudly if reintroduced.
+
+CI runs lint, types, tests and build on every push.
+
+### Security
+
+| Control | Where |
+|---|---|
+| Firestore closed to all direct client access | [`firestore.rules`](firestore.rules) — verified live: anonymous read/write both 403 |
+| Least-privilege runtime identity | Dedicated `kavach-run` SA; replaced the default compute SA, which held project-wide `roles/editor` |
+| Secrets never in the image or repo | Secret Manager, mounted at deploy; full-history scan is clean |
+| Ingest endpoint fails closed | Returns 404 unless `INGEST_TOKEN` is configured, so a deploy can't expose an unauthenticated write path |
+| Rate limiting on every paid endpoint | `src/lib/rate-limit.ts` — the realistic attack here is cost, not data theft |
+| Upload size cap + bucket pinning | 15 MB; reads are refused from any bucket but our own |
+| Ownership checks | A saved analysis 404s for anyone but its owner — obscurity alone stops being enough once it no longer expires |
+| Prompt injection | Document and judgment text is wrapped as untrusted data and declared non-instruction in the system layer |
+| Security headers | `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS |
+
+The Firebase web API key in `firebase-client.ts` is public by design — it ships
+in the client bundle regardless, and access is controlled by the rules above.
+
+### Accessibility
+
+Audited and fixed, not assumed:
+
+- Every interactive element is keyboard operable. Clause spans in the document
+  pane were `<span onClick>` — they are now real buttons with `aria-pressed`
+  and a verdict announced in their accessible name.
+- The upload input was `display:none`, which removed the app's primary action
+  from the accessibility tree entirely. It is `sr-only` now: hidden, still
+  focusable, still announced.
+- `focus:outline-none` was out-specifying the global focus ring and leaving
+  keyboard users with no visible focus. Removed; the ring always wins.
+- Async state is announced — `role="status"` on progress, `role="alert"` on
+  errors, `aria-live` on answers and results.
+- `--color-ink-faint` measured **2.98:1** on paper and is used for most
+  secondary text. Darkened to clear AA, along with the caution and brass
+  verdict colours.
+- Skip link, `<main>` landmarks, one `<h1>` per view, `lang` on translated
+  content and on कवच so a screen reader doesn't read Devanagari in an English
+  voice, focusable scroll regions, `aria-pressed` on the theme toggle.
+
+`jsx-a11y` now runs in CI — it had never run before, which is precisely why
+these survived to production.
+
+### Efficiency
+
+- **Judgment explanations and translations are cached** in Firestore. A
+  judgment's text never changes, so its explanation is a pure function of it;
+  regenerating per page view cost ~25s and real money for identical output.
+  Measured on the live service: **25.35s → 0.23s.**
+- Adjudication runs one call per clause in parallel via `Promise.all`, scoped
+  to ~2k tokens each rather than one 40-page prompt.
+- Stage 3 and Stage 5 are deterministic — no model call at all.
+- Clause typing is batched 10 per request.
+- `AuthProvider` context is memoised; without it the judgment explanation
+  request fired twice per page load.
+
 ## Stack
 
 | | |
@@ -320,6 +403,39 @@ Stated plainly, because a tool that hides its edges can't be trusted at its cent
    hands you the question to put to a lawyer.
 
 ---
+
+## Against the problem statement
+
+> *"Build a GenAI-powered solution that makes legal information and basic legal
+> assistance more accessible by helping users understand, compare, and navigate
+> legal documents and information."*
+
+| The brief asked for | Where it is |
+|---|---|
+| Simplifying complex legal documents | Clause segmentation + plain-English per-clause findings |
+| Highlighting important clauses, obligations, risks | Verdicts tinting the document itself, ranked by severity, with a risk score |
+| Answering questions based on provided legal documents | The Ask panel, answering only from tool output over *your* document |
+| Helping users understand their options and next steps | `negotiationAsk` — the exact counter-language to request, per clause |
+| Generating summaries, checklists, actionable outputs | The missing-protections list, each with what its absence costs and what to ask for |
+| Helping users prepare questions for a legal professional | `ask_a_lawyer` as a first-class tool, and `lawyerQuestion` on any finding that turns on outside facts |
+| Comparing contracts, agreements, policies | **Partly.** Your document is compared against a curated statutory baseline and against the protections it should contain — but there is no document-to-document diff |
+
+> *"Solutions should provide information and assistance, rather than replace
+> professional legal advice."*
+
+This is the constraint the architecture is built around rather than a
+disclaimer bolted on. The refusal path is a tool, not a failure mode; the line
+between information and advice is drawn explicitly in the agent's contract with
+worked examples on both sides; and a judgment explanation carries a section
+stating what the judgment **does not** decide.
+
+> *"Original ideas, experimentation, and out-of-the-box thinking are encouraged."*
+
+The two things here that a chat-with-your-PDF build cannot do: **telling you
+which clauses are unenforceable** (which needs a curated statutory baseline, not
+retrieval over the document), and **telling you what is missing** (which is
+structurally invisible to anything that only reads what is in the context
+window).
 
 ## Documentation
 

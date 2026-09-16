@@ -1,4 +1,10 @@
-import { VertexAI } from "@google-cloud/vertexai";
+import {
+  VertexAI,
+  type Content,
+  type FunctionCall,
+  type FunctionDeclaration,
+  type Part,
+} from "@google-cloud/vertexai";
 
 /**
  * Single point of contact with the model provider (Architecture §5.2).
@@ -90,17 +96,16 @@ export type ConversationTurn =
  */
 export async function converse(params: {
   systemInstruction: string;
-  functionDeclarations: object[];
+  functionDeclarations: FunctionDeclaration[];
   history: ConversationTurn[];
 }): Promise<TurnResult> {
   const model = client().getGenerativeModel({
     model: MODEL,
     systemInstruction: params.systemInstruction,
     tools: [{ functionDeclarations: params.functionDeclarations }],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  });
 
-  const contents = params.history.map((turn) => {
+  const contents: Content[] = params.history.map((turn) => {
     if (turn.role === "toolResult") {
       return {
         role: "user",
@@ -108,7 +113,7 @@ export async function converse(params: {
           {
             functionResponse: {
               name: turn.name,
-              response: { result: turn.result },
+              response: { result: turn.result } as object,
             },
           },
         ],
@@ -117,22 +122,21 @@ export async function converse(params: {
     return { role: turn.role, parts: [{ text: turn.text }] };
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await (model as any).generateContent({ contents });
-  const parts = result.response?.candidates?.[0]?.content?.parts ?? [];
+  const result = await model.generateContent({ contents });
+  const parts: Part[] = result.response?.candidates?.[0]?.content?.parts ?? [];
 
   const calls: ToolCall[] = parts
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((p: any) => p.functionCall)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((p: any) => ({
-      name: p.functionCall.name as string,
+    .filter((p): p is Part & { functionCall: FunctionCall } => "functionCall" in p)
+    .map((p) => ({
+      name: p.functionCall.name,
       args: (p.functionCall.args ?? {}) as Record<string, unknown>,
     }));
 
   if (calls.length > 0) return { kind: "calls", calls };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const text = parts.map((p: any) => p.text ?? "").join("").trim();
+  const text = parts
+    .map((p) => ("text" in p ? (p.text ?? "") : ""))
+    .join("")
+    .trim();
   return { kind: "text", text };
 }

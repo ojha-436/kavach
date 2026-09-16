@@ -79,7 +79,7 @@
 
   {
     "docType": "employment",
-    "clauseType": "termination_notice",
+    "clauseType": "notice_period_asymmetry",
     "title": "No notice period stated",
     "absenceMeans": "The letter does not say how much notice either side must give. Without it you have no contractual certainty about how quickly you could be asked to leave, or what you owe if you resign.",
     "negotiationAsk": "Ask for the notice period to be stated for both sides, ideally symmetrically."

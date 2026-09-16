@@ -1,5 +1,5 @@
 import { adjudicate as callModel } from "./llm";
-import { isValidRuleId, rulesFor } from "./rules";
+import { rulesFor } from "./rules";
 import { OTHER } from "./classify-clauses";
 import {
   Clause,

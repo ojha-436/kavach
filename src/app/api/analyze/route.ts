@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import { v4 as uuidv4 } from "uuid";
 import { downloadFromGcs } from "@/lib/storage";
 import { extractText } from "@/lib/extract";
@@ -17,6 +18,9 @@ export const maxDuration = 300;
 
 /** Stage 0 (ingest + segment) and Stage 1 (document frame). No verdicts yet. */
 export async function POST(req: NextRequest) {
+  const limited = rateLimit(req, "expensive");
+  if (limited) return limited;
+
   const body = await req.json().catch(() => null);
   const { gcsUri, fileName, contentType } = body ?? {};
 

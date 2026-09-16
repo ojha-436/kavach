@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   watchAuth,
   signInWithGoogle,
@@ -75,30 +82,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const value: AuthState = {
-    user,
-    loading,
-    error,
-    signIn: async () => {
-      setError(null);
-      try {
-        await signInWithGoogle();
-      } catch (err) {
-        console.error("Google sign-in failed", err);
-        setError(readableAuthError(err));
-      }
-    },
-    signOut: async () => {
-      try {
-        await signOut();
-      } catch (err) {
-        console.error("Sign-out failed", err);
-        setError("Couldn't sign you out. Please try again.");
-      }
-    },
-    dismissError: () => setError(null),
-    token: async () => (user ? user.getIdToken() : null),
-  };
+  const doSignIn = useCallback(async () => {
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      console.error("Google sign-in failed", err);
+      setError(readableAuthError(err));
+    }
+  }, []);
+
+  const doSignOut = useCallback(async () => {
+    try {
+      await signOut();
+    } catch (err) {
+      console.error("Sign-out failed", err);
+      setError("Couldn't sign you out. Please try again.");
+    }
+  }, []);
+
+  const dismissError = useCallback(() => setError(null), []);
+  const token = useCallback(
+    async () => (user ? user.getIdToken() : null),
+    [user]
+  );
+
+  /**
+   * Memoised deliberately. These closures are dependencies of `useCallback`
+   * loaders in the judgment and history pages; rebuilding them on every
+   * render re-ran those effects, which fired the expensive judgment
+   * explanation request at least twice per page load.
+   */
+  const value = useMemo<AuthState>(
+    () => ({
+      user,
+      loading,
+      error,
+      signIn: doSignIn,
+      signOut: doSignOut,
+      dismissError,
+      token,
+    }),
+    [user, loading, error, doSignIn, doSignOut, dismissError, token]
+  );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

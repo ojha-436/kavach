@@ -19,14 +19,17 @@
 
   --color-ink: #16232e;
   --color-ink-soft: #4c5b64;
-  --color-ink-faint: #7c8a90;
+  /* Darkened from #7c8a90, which measured 2.98:1 on paper and failed WCAG
+     AA everywhere it was used — and it is used for most secondary text. */
+  --color-ink-faint: #5f6d74;
 
-  /* verdict register */
+  /* verdict register. These carry meaning, so they have to stay legible:
+     each is tuned to clear 4.5:1 on both paper and its own wash. */
   --color-seal: #8e1b2b;
   --color-seal-wash: #f2dee0;
-  --color-caution: #a2571c;
+  --color-caution: #8a4914;
   --color-caution-wash: #f5e4d4;
-  --color-brass: #8a6c2a;
+  --color-brass: #6f5620;
   --color-brass-wash: #efe6cf;
   --color-favour: #2f6b4f;
   --color-favour-wash: #dceade;
@@ -73,10 +76,45 @@
     color: var(--color-ink);
   }
 
-  :focus-visible {
-    outline: 2px solid var(--color-attest);
+  /* Raised above the `focus:outline-none` utility that was previously
+     applied to every text control, which out-specified this and left
+     keyboard users with no visible focus at all. */
+  :focus-visible,
+  .focus\:outline-none:focus-visible {
+    outline: 2px solid var(--color-attest) !important;
     outline-offset: 2px;
   }
+}
+
+/* Visually hidden but still focusable and still announced — unlike
+   `display: none`, which removes an element from the accessibility tree
+   entirely. The upload input depends on this to be reachable at all. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 50;
+  padding: 0.6rem 1rem;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
+  transition: top 120ms ease-in;
+}
+
+.skip-link:focus {
+  top: 0.5rem;
 }
 
 /*
@@ -143,7 +181,7 @@
 
     --color-ink: #e6ebe4;
     --color-ink-soft: #a3b0b3;
-    --color-ink-faint: #74838a;
+    --color-ink-faint: #8b9aa1;
 
     --color-seal: #d97382;
     --color-seal-wash: #3a1a20;
@@ -168,7 +206,7 @@
 
   --color-ink: #e6ebe4;
   --color-ink-soft: #a3b0b3;
-  --color-ink-faint: #74838a;
+  --color-ink-faint: #8b9aa1;
 
   --color-seal: #d97382;
   --color-seal-wash: #3a1a20;

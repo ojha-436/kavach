@@ -6,6 +6,7 @@ import {
   ClauseFinding,
   ExpectedProtection,
   Judgment,
+  JudgmentExplanation,
   JudgmentParagraph,
 } from "./schema";
 
@@ -298,6 +299,44 @@ export type JudgmentHit = Pick<
   Judgment,
   "id" | "title" | "citation" | "year" | "court" | "caseNumber"
 >;
+
+/**
+ * Explanations and their translations are deterministic outputs of an
+ * unchanging source document, so regenerating one per page view burns ~25s
+ * and real money for byte-identical text. Cached by judgment and language.
+ */
+export type CachedExplanation = {
+  explanation: JudgmentExplanation;
+  droppedClaims: number;
+  truncated: boolean;
+  generatedAt: string;
+};
+
+export async function getCachedExplanation(
+  judgmentId: string,
+  lang: string
+): Promise<CachedExplanation | null> {
+  const snap = await client()
+    .collection("judgments")
+    .doc(judgmentId)
+    .collection("explanations")
+    .doc(lang)
+    .get();
+  return snap.exists ? (snap.data() as CachedExplanation) : null;
+}
+
+export async function putCachedExplanation(
+  judgmentId: string,
+  lang: string,
+  value: CachedExplanation
+): Promise<void> {
+  await client()
+    .collection("judgments")
+    .doc(judgmentId)
+    .collection("explanations")
+    .doc(lang)
+    .set(value);
+}
 
 export async function searchJudgments(
   query: string,

@@ -20,6 +20,34 @@ const nextConfig: NextConfig = {
    * OAuth client's authorized redirect URIs, flip authDomain to the app's
    * own host, and the flow stops depending on third-party cookies.
    */
+  /**
+   * The app renders untrusted text — uploaded contracts and court judgments —
+   * so it should not be framable, should not leak referrers to third parties,
+   * and should not let a browser sniff a response into a different type.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            // Microphone stays enabled for same-origin: the Ask panel's
+            // speech input needs it. Everything else is off.
+            value: "camera=(), geolocation=(), microphone=(self)",
+          },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+        ],
+      },
+    ];
+  },
+
   async rewrites() {
     return [
       {

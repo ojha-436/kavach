@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import { runAgent } from "@/lib/agent";
 import type { ConversationTurn } from "@/lib/llm";
 import { getSessionUser } from "@/lib/auth-server";
@@ -7,6 +8,9 @@ import { recordActivity } from "@/lib/firestore-admin";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimit(req, "agent");
+  if (limited) return limited;
+
   const body = await req.json().catch(() => null);
   const message = body?.message;
   const history = Array.isArray(body?.history) ? body.history : [];

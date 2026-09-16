@@ -91,7 +91,9 @@ export default function JudgmentPage({
     try {
       setData(await load(next));
     } catch {
-      // Keep whatever is already on screen rather than blanking the page.
+      // Revert the picker: leaving it on the chosen language while English
+      // is still displayed makes the UI lie about what the reader is seeing.
+      setLang(data.language ?? "");
     } finally {
       setTranslating(false);
     }
@@ -106,7 +108,7 @@ export default function JudgmentPage({
     return (
       <>
         <SiteHeader />
-        <main className="mx-auto max-w-3xl px-5 py-20">
+        <main id="main" className="mx-auto max-w-3xl px-5 py-20">
           <p className="prose-document text-ink-soft">{error}</p>
         </main>
       </>
@@ -117,7 +119,7 @@ export default function JudgmentPage({
     return (
       <>
         <SiteHeader />
-        <main className="mx-auto max-w-3xl px-5 py-20">
+        <main id="main" className="mx-auto max-w-3xl px-5 py-20">
           <p className="font-sans text-ink-faint">
             Reading the judgment and checking every claim against it…
           </p>
@@ -134,7 +136,7 @@ export default function JudgmentPage({
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-5 py-10 pb-20">
+      <main id="main" className="mx-auto max-w-6xl px-5 py-10 pb-20">
         <header className="border-b border-rule pb-6">
           <h1 className="font-display text-3xl font-medium text-ink">{judgment.title}</h1>
           <p className="mt-2 font-sans text-sm text-ink-faint numeral-tabular">
@@ -153,7 +155,7 @@ export default function JudgmentPage({
                 value={lang}
                 onChange={(e) => void changeLanguage(e.target.value)}
                 disabled={translating}
-                className="border border-rule bg-paper-raised px-2 py-1.5 font-sans text-sm text-ink focus:border-attest focus:outline-none"
+                className="border border-rule bg-paper-raised px-2 py-1.5 font-sans text-sm text-ink focus:border-attest"
               >
                 <option value="">English</option>
                 {Object.entries(languages).map(([code, name]) => (
@@ -163,9 +165,9 @@ export default function JudgmentPage({
                 ))}
               </select>
             </label>
-            {translating && (
-              <span className="font-sans text-xs text-ink-faint">Translating…</span>
-            )}
+            <span role="status" aria-live="polite" className="font-sans text-xs text-ink-faint">
+              {translating ? "Translating…" : ""}
+            </span>
             {translated && (
               <span className="font-sans text-xs text-ink-faint">
                 Machine translation of the English explanation. The judgment itself is
@@ -175,14 +177,14 @@ export default function JudgmentPage({
           </div>
 
           {translationError && (
-            <p className="mt-3 border border-caution bg-caution-wash px-3 py-2 font-sans text-sm text-caution">
+            <p role="alert" className="mt-3 border border-caution bg-caution-wash px-3 py-2 font-sans text-sm text-caution">
               {translationError}
             </p>
           )}
         </header>
 
         <div className="grid gap-12 py-10 lg:grid-cols-[1fr_1fr] lg:gap-14">
-          <div>
+          <div lang={data.language ?? "en"}>
             {shown ? (
               <>
                 {SECTIONS.map(({ key, title }) => {
@@ -247,7 +249,12 @@ export default function JudgmentPage({
             )}
           </div>
 
-          <div className="lg:max-h-[75vh] lg:overflow-y-auto lg:border-l lg:border-rule lg:pl-10">
+          <div
+            tabIndex={0}
+            role="region"
+            aria-label="Judgment text"
+            className="lg:max-h-[75vh] lg:overflow-y-auto lg:border-l lg:border-rule lg:pl-10"
+          >
             {paragraphs.map((p) => (
               <div
                 key={p.index}

@@ -68,6 +68,7 @@ export function ThemeToggle() {
     <button
       onClick={() => choose(isDark ? "light" : "dark")}
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      aria-pressed={isDark}
       title={isDark ? "Light theme" : "Dark theme"}
       className="flex size-7 items-center justify-center rounded text-ink-soft transition-colors hover:bg-paper-sunk hover:text-ink"
     >
@@ -78,7 +79,7 @@ export function ThemeToggle() {
 
 function SunIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
       <circle cx="12" cy="12" r="4" />
       <path
         strokeLinecap="round"
@@ -90,7 +91,7 @@ function SunIcon() {
 
 function MoonIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"

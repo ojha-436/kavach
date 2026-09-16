@@ -18,7 +18,7 @@ export function SiteHeader() {
   return (
     <header className="border-b border-rule bg-paper-raised">
       {error && (
-        <div className="border-b border-seal bg-seal-wash">
+        <div role="alert" className="border-b border-seal bg-seal-wash">
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-2 text-sm text-seal">
             <span>{error}</span>
             <button
@@ -32,7 +32,7 @@ export function SiteHeader() {
       )}
       <div className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-3">
         <Link href="/" className="font-display text-lg font-semibold tracking-tight text-ink">
-          Kavach <span className="text-ink-faint">कवच</span>
+          Kavach <span lang="hi" className="text-ink-faint">कवच</span>
         </Link>
 
         <nav className="flex items-center gap-1 text-sm">

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import { v4 as uuidv4 } from "uuid";
 import { getSignedUploadUrl, isAllowedContentType } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimit(req, "upload");
+  if (limited) return limited;
+
   const body = await req.json().catch(() => null);
   const fileName = body?.fileName;
   const contentType = body?.contentType;

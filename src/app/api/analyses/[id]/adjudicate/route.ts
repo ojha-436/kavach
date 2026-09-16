@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   getAnalysis,
   listClauses,
@@ -26,9 +27,13 @@ const WEIGHT: Record<string, number> = {
 
 /** Stages 2, 4 and 5. Runs after Stage 0/1 so clauses render immediately. */
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // The most expensive endpoint in the app: one Vertex AI call per clause.
+  const limited = rateLimit(req, "expensive");
+  if (limited) return limited;
+
   const { id } = await params;
 
   const analysis = await getAnalysis(id);

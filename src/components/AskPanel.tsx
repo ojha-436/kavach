@@ -121,7 +121,7 @@ export function AskPanel({
       )}
 
       {messages.length > 0 && (
-        <div className="mt-6 space-y-6">
+        <div aria-live="polite" className="mt-6 space-y-6">
           {messages.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="flex justify-end">
@@ -142,7 +142,11 @@ export function AskPanel({
               </div>
             )
           )}
-          {busy && <p className="font-sans text-sm text-ink-faint">Checking the sources…</p>}
+          {busy && (
+            <p role="status" className="font-sans text-sm text-ink-faint">
+              Checking the sources…
+            </p>
+          )}
           <div ref={endRef} />
         </div>
       )}
@@ -164,8 +168,9 @@ export function AskPanel({
             }
           }}
           rows={2}
+          aria-label="Ask a question about this document"
           placeholder={listening ? "Listening…" : "Ask a question"}
-          className="flex-1 resize-none border border-rule bg-paper-raised px-3 py-2.5 font-sans text-ink placeholder:text-ink-faint focus:border-attest focus:outline-none"
+          className="flex-1 resize-none border border-rule bg-paper-raised px-3 py-2.5 font-sans text-ink placeholder:text-ink-faint focus:border-attest"
         />
         {voiceInputSupported() && (
           <button

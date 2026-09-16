@@ -45,6 +45,7 @@ export default function HistoryPage() {
   const { user, loading, signIn, token } = useAuth();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const idToken = await token();
@@ -52,11 +53,17 @@ export default function HistoryPage() {
       setEntries([]);
       return;
     }
-    const res = await fetch("/api/history", {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
-    const data = await res.json();
-    setEntries(data.entries ?? []);
+    try {
+      const res = await fetch("/api/history", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      setEntries(data.entries ?? []);
+    } catch {
+      // Without this the page sits on "Loading…" forever on a network blip.
+      setEntries([]);
+      setError("Couldn't load your history. Please refresh.");
+    }
   }, [token]);
 
   useEffect(() => {
@@ -82,7 +89,7 @@ export default function HistoryPage() {
     return (
       <>
         <SiteHeader />
-        <main className="mx-auto max-w-xl px-5 py-20">
+        <main id="main" className="mx-auto max-w-xl px-5 py-20">
           <h1 className="font-display text-3xl font-medium text-ink">History</h1>
           <p className="prose-document mt-4 text-ink-soft">
             History is kept for signed-in users only. While you&apos;re signed out
@@ -112,7 +119,7 @@ export default function HistoryPage() {
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-5 py-14">
+      <main id="main" className="mx-auto max-w-3xl px-5 py-14">
         <div className="flex flex-wrap items-baseline gap-4">
           <h1 className="font-display text-3xl font-medium text-ink">History</h1>
           {entries && entries.length > 0 && (
@@ -130,6 +137,12 @@ export default function HistoryPage() {
           Documents you&apos;ve uploaded, questions you&apos;ve asked, and judgments
           you&apos;ve searched or read.
         </p>
+
+        {error && (
+          <p role="alert" className="mt-6 border border-seal bg-seal-wash px-4 py-3 font-sans text-sm text-seal">
+            {error}
+          </p>
+        )}
 
         {entries === null ? (
           <p className="mt-10 font-sans text-ink-faint">Loading…</p>

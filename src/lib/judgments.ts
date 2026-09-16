@@ -102,11 +102,26 @@ const EDITORIAL_MARKERS = [
 export function deriveCourt(fullText: string, source: "sc" | "hc"): string {
   if (source === "sc") return "Supreme Court of India";
 
-  const head = fullText.slice(0, 6000).replace(/\s+/g, " ");
-  const hc = head.match(
-    /IN THE HIGH COURT (?:OF JUDICATURE )?(?:OF |AT |FOR )?([A-Za-z][A-Za-z ,'&-]{2,60}?)(?:\s+(?:AT|BENCH|CIVIL|CRIMINAL|ORDINARY|APPELLATE|ORIGINAL)\b|\s{2,}|$)/i
-  );
-  if (hc) return `High Court of ${titleCase(hc[1])}`;
+  // Work line by line rather than over collapsed whitespace: the court names
+  // itself on its own line, and collapsing first leaves no reliable terminator
+  // unless a keyword happens to follow the name.
+  for (const line of fullText.slice(0, 6000).split("\n")) {
+    const m = line
+      .trim()
+      .match(/^IN THE HIGH COURT\s+(?:OF JUDICATURE\s+)?(?:OF\s+|AT\s+|FOR\s+)?(.+)$/i);
+    if (!m) continue;
+
+    const name = m[1]
+      // Drop jurisdiction/bench qualifiers that trail the place name.
+      .replace(
+        /\s+(?:AT\s+\w+)?\s*(?:CIVIL|CRIMINAL|ORDINARY|EXTRAORDINARY|APPELLATE|ORIGINAL|WRIT)\b.*$/i,
+        ""
+      )
+      .replace(/[.,:;]+$/, "")
+      .trim();
+
+    if (name.length >= 3) return `High Court of ${titleCase(name)}`;
+  }
 
   return "High Court (unspecified)";
 }

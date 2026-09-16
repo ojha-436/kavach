@@ -42,7 +42,10 @@ export default function AnalyzePage() {
   const [kind, setKind] = useState<DocumentKind | null>(null);
   const [covered, setCovered] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const clauseRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const clauseRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  /** Guards against a previous document's in-flight verdicts landing on this one. */
+  const currentAnalysis = useRef<string | null>(null);
+  const [judgeError, setJudgeError] = useState<string | null>(null);
 
   // Stages 2/4/5 run after the clauses are already on screen.
   const [judging, setJudging] = useState(false);
@@ -56,10 +59,27 @@ export default function AnalyzePage() {
 
   async function adjudicate(id: string) {
     setJudging(true);
+    setJudgeError(null);
     try {
-      const res = await fetch(`/api/analyses/${id}/adjudicate`, { method: "POST" });
+      const res = await fetch(`/api/analyses/${id}/adjudicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
       const data = await res.json();
-      if (!res.ok || !data.covered) return;
+
+      // A second upload may have started while this was in flight; painting
+      // the first document's verdicts onto the second would be worse than
+      // showing none.
+      if (currentAnalysis.current !== id) return;
+
+      if (!res.ok) {
+        setJudgeError(
+          data.error ?? "The clause-by-clause check didn't finish. The document above is still accurate."
+        );
+        return;
+      }
+      if (!data.covered) return;
 
       setClauses(data.clauses ?? []);
       setFindings(
@@ -70,9 +90,13 @@ export default function AnalyzePage() {
       setMissing(data.missingProtections ?? []);
       setReport(data.report ?? null);
     } catch {
-      // Segmentation still stands; the verdict pass simply didn't land.
+      if (currentAnalysis.current === id) {
+        setJudgeError(
+          "The clause-by-clause check couldn't be reached. The document above is still accurate."
+        );
+      }
     } finally {
-      setJudging(false);
+      if (currentAnalysis.current === id) setJudging(false);
     }
   }
 
@@ -119,6 +143,7 @@ export default function AnalyzePage() {
       if (!res.ok) throw new Error(data.error ?? "Analysis failed");
 
       setAnalysisId(data.id);
+      currentAnalysis.current = data.id;
       setText(data.text);
       setClauses(data.clauses);
       setKind(data.kind);
@@ -170,26 +195,26 @@ export default function AnalyzePage() {
     return (
       <>
         <SiteHeader />
-        <main className="mx-auto max-w-6xl px-5 pb-20">
+        <main id="main" className="mx-auto max-w-6xl px-5 pb-20">
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-rule py-4">
-            <p className="font-display text-lg text-ink">{kind?.label}</p>
+            <h1 className="font-display text-lg text-ink">{kind?.label}</h1>
             <p className="font-sans text-sm text-ink-soft numeral-tabular">
               {clauses.length} clauses
               {kind?.state ? ` · ${kind.state}` : ""}
             </p>
-            {judging && (
-              <p className="font-sans text-sm text-ink-faint">
-                Checking each clause against the statute…
-              </p>
-            )}
+            <p role="status" aria-live="polite" className="font-sans text-sm text-ink-faint">
+              {judging ? "Checking each clause against the statute…" : ""}
+            </p>
             {report && <RiskScore score={report.riskScore} counts={report.counts} />}
             <button
               onClick={() => {
+                currentAnalysis.current = null;
                 setStatus("idle");
                 setClauses([]);
                 setText("");
                 setSelectedId(null);
                 setKind(null);
+                setJudgeError(null);
               }}
               className="ml-auto font-sans text-sm text-ink-soft underline-offset-4 hover:text-ink hover:underline"
             >
@@ -197,8 +222,20 @@ export default function AnalyzePage() {
             </button>
           </div>
 
+          {judgeError && (
+            <p
+              role="alert"
+              className="mt-4 border border-caution bg-caution-wash px-4 py-3 font-sans text-sm text-caution"
+            >
+              {judgeError}
+            </p>
+          )}
+
           {!covered && (
-            <p className="mt-4 border border-caution bg-caution-wash px-4 py-3 font-sans text-sm text-caution">
+            <p
+              role="status"
+              className="mt-4 border border-caution bg-caution-wash px-4 py-3 font-sans text-sm text-caution"
+            >
               Kavach&apos;s statutory rule pack covers Indian residential rental
               agreements and employment offer letters. This looks like a{" "}
               {kind?.label.toLowerCase()}, so there are no curated rules to check it
@@ -216,16 +253,28 @@ export default function AnalyzePage() {
           )}
 
           <div className="grid gap-10 py-8 lg:grid-cols-[1fr_320px] lg:gap-12">
+            {/* Each clause is a real button: it is an interactive control, so
+                it must be reachable and operable from the keyboard. */}
             <div className="prose-document whitespace-pre-wrap text-ink">
               {segments.map((seg) =>
                 seg.clauseId ? (
-                  <span
+                  <button
                     key={seg.key}
+                    type="button"
                     ref={(el) => {
                       clauseRefs.current[seg.clauseId!] = el;
                     }}
                     onClick={() => select(seg.clauseId!)}
-                    className={`cursor-pointer transition-colors ${
+                    aria-pressed={selectedId === seg.clauseId}
+                    aria-label={`Clause: ${
+                      clauses.find((c) => c.id === seg.clauseId)?.heading ??
+                      "untitled"
+                    }${
+                      findings[seg.clauseId!]
+                        ? `, verdict ${findings[seg.clauseId!].verdict.toLowerCase().replace(/_/g, " ")}`
+                        : ""
+                    }`}
+                    className={`cursor-pointer whitespace-pre-wrap text-left transition-colors ${
                       selectedId === seg.clauseId
                         ? "bg-attest-wash"
                         : verdictHighlight(findings[seg.clauseId!]?.verdict) ||
@@ -233,7 +282,7 @@ export default function AnalyzePage() {
                     }`}
                   >
                     {seg.text}
-                  </span>
+                  </button>
                 ) : (
                   <span key={seg.key} className="text-ink-faint">
                     {seg.text}
@@ -306,7 +355,7 @@ export default function AnalyzePage() {
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-xl px-5 py-16">
+      <main id="main" className="mx-auto max-w-xl px-5 py-16">
         <h1 className="font-display text-3xl font-medium text-ink">Your document</h1>
         <p className="prose-document mt-4 text-ink-soft">
           Upload any Indian legal document as PDF or DOCX — a rental agreement, an offer
@@ -318,11 +367,18 @@ export default function AnalyzePage() {
           24 hours.
         </p>
 
-        <label className="mt-8 flex cursor-pointer items-center justify-center border border-dashed border-rule bg-paper-raised px-6 py-16 text-center transition-colors hover:border-attest">
+        {/* sr-only rather than `hidden`: display:none removes the input from
+            the accessibility tree entirely, which made the app's primary
+            action unreachable by keyboard and invisible to screen readers. */}
+        <label
+          htmlFor="document-upload"
+          className="mt-8 flex cursor-pointer items-center justify-center border border-dashed border-rule bg-paper-raised px-6 py-16 text-center transition-colors hover:border-attest"
+        >
           <input
+            id="document-upload"
             type="file"
             accept=".pdf,.docx"
-            className="hidden"
+            className="sr-only"
             disabled={working}
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -330,12 +386,19 @@ export default function AnalyzePage() {
             }}
           />
           <span className="font-sans text-ink-soft">
-            {working ? statusDetail : "Choose a file"}
+            {working ? statusDetail : "Choose a file (PDF or DOCX, up to 15 MB)"}
           </span>
         </label>
 
+        <p role="status" aria-live="polite" className="sr-only">
+          {working ? statusDetail : ""}
+        </p>
+
         {error && (
-          <p className="mt-4 border border-seal bg-seal-wash px-4 py-3 font-sans text-sm text-seal">
+          <p
+            role="alert"
+            className="mt-4 border border-seal bg-seal-wash px-4 py-3 font-sans text-sm text-seal"
+          >
             {error}
           </p>
         )}

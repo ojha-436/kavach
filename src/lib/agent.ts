@@ -1,3 +1,4 @@
+import type { FunctionDeclaration } from "@google-cloud/vertexai";
 import { converse, type ConversationTurn, type ToolCall } from "./llm";
 import { rulesFor, expectedClauseTypes } from "./rules";
 import { DocType } from "./schema";
@@ -68,6 +69,12 @@ HOW TO WRITE
 Short sentences. Ordinary words. No legalese unless you immediately explain it. The person you
 are talking to is worried about a contract they may have already signed. Be calm and concrete.`;
 
+/**
+ * Typed via a single assertion rather than the SDK's SchemaType enum. That
+ * enum is a string enum whose members are exactly these literals ("OBJECT",
+ * "STRING", …), so the runtime values are already correct and the mismatch
+ * is purely nominal.
+ */
 const FUNCTION_DECLARATIONS = [
   {
     name: "lookup_rule",
@@ -141,7 +148,7 @@ const FUNCTION_DECLARATIONS = [
       required: ["question", "why"],
     },
   },
-];
+] as unknown as FunctionDeclaration[];
 
 async function runTool(call: ToolCall): Promise<unknown> {
   switch (call.name) {

@@ -26,6 +26,7 @@ export default function JudgmentsPage() {
   });
   const [results, setResults] = useState<Result[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -38,6 +39,7 @@ export default function JudgmentsPage() {
     e.preventDefault();
     if (!query.trim() && !court && !year && !caseNumber.trim()) return;
     setBusy(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set("q", query.trim());
@@ -51,6 +53,9 @@ export default function JudgmentsPage() {
       });
       const data = await res.json();
       setResults(data.results ?? []);
+    } catch {
+      setError("Couldn't reach the judgment search. Please try again.");
+      setResults([]);
     } finally {
       setBusy(false);
     }
@@ -69,7 +74,7 @@ export default function JudgmentsPage() {
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-5 py-14">
+      <main id="main" className="mx-auto max-w-3xl px-5 py-14">
         <h1 className="font-display text-3xl font-medium text-ink">
           Judgments, in plain English
         </h1>
@@ -89,8 +94,9 @@ export default function JudgmentsPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search judgments by subject or party"
               placeholder="Subject or party — non-compete, arbitrator, tenancy"
-              className="flex-1 border border-rule bg-paper-raised px-3 py-2.5 font-sans text-ink placeholder:text-ink-faint focus:border-attest focus:outline-none"
+              className="flex-1 border border-rule bg-paper-raised px-3 py-2.5 font-sans text-ink placeholder:text-ink-faint focus:border-attest"
             />
             <button
               type="submit"
@@ -106,7 +112,7 @@ export default function JudgmentsPage() {
               value={court}
               onChange={(e) => setCourt(e.target.value)}
               aria-label="Court"
-              className="border border-rule bg-paper-raised px-3 py-2 font-sans text-sm text-ink focus:border-attest focus:outline-none"
+              className="border border-rule bg-paper-raised px-3 py-2 font-sans text-sm text-ink focus:border-attest"
             >
               <option value="">Any court</option>
               {facets.courts.map((c) => (
@@ -120,7 +126,7 @@ export default function JudgmentsPage() {
               value={year}
               onChange={(e) => setYear(e.target.value)}
               aria-label="Year"
-              className="border border-rule bg-paper-raised px-3 py-2 font-sans text-sm text-ink focus:border-attest focus:outline-none"
+              className="border border-rule bg-paper-raised px-3 py-2 font-sans text-sm text-ink focus:border-attest"
             >
               <option value="">Any year</option>
               {facets.years.map((y) => (
@@ -135,7 +141,7 @@ export default function JudgmentsPage() {
               onChange={(e) => setCaseNumber(e.target.value)}
               placeholder="Case number"
               aria-label="Case number"
-              className="border border-rule bg-paper-raised px-3 py-2 font-sans text-sm text-ink placeholder:text-ink-faint focus:border-attest focus:outline-none"
+              className="border border-rule bg-paper-raised px-3 py-2 font-sans text-sm text-ink placeholder:text-ink-faint focus:border-attest"
             />
           </div>
 
@@ -150,8 +156,14 @@ export default function JudgmentsPage() {
           )}
         </form>
 
+        {error && (
+          <p role="alert" className="mt-6 border border-seal bg-seal-wash px-4 py-3 font-sans text-sm text-seal">
+            {error}
+          </p>
+        )}
+
         {results !== null && (
-          <div className="mt-10">
+          <div aria-live="polite" className="mt-10">
             {results.length === 0 ? (
               <p className="prose-document text-ink-soft">
                 Nothing in the ingested corpus matches that. The corpus is a curated

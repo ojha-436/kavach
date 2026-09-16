@@ -6,7 +6,7 @@ export default function Home() {
     <>
       <SiteHeader />
 
-      <main className="mx-auto max-w-6xl px-5">
+      <main id="main" className="mx-auto max-w-6xl px-5">
         {/* The hero is the artifact itself: a real clause, with the verdict
             landing on it. The product's whole claim in one object. */}
         <section className="grid gap-12 py-16 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-16 lg:py-24">
