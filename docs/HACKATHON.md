@@ -67,9 +67,7 @@ to a lawyer.
 ## Live links
 - **Deployed app:** https://kavach-823065407403.asia-south1.run.app
   - `/analyze` contract clause segmentation · `/judgments` judgment explainer · `/ask` the agent
-- **Repo:** TODO — local git initialised at `D:\projects\promptwar-kavach`, not yet pushed. GitHub
-  push blocked on Day 1 by an invalid/expired credential (`mcp__github` returned "Bad credentials")
-  and no `gh` CLI installed. Reconnect GitHub auth (or install/login `gh`), then push.
+- **Repo:** https://github.com/ojha-436/kavach (public)
 - **Demo video:** TODO
 
 ## Scope decisions log
