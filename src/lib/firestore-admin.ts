@@ -102,6 +102,27 @@ export async function listClauses(analysisId: string): Promise<Clause[]> {
   return snap.docs.map((d) => d.data() as Clause);
 }
 
+/**
+ * Exactly the fields Stages 2 and 4 are allowed to change on a clause.
+ *
+ * Extracted and exported so the projection can be tested: `alsoCovers` was
+ * once omitted here, which meant Stage 2's secondary topics were computed,
+ * returned to the browser, and then silently lost on write. Everything that
+ * later read clauses back from Firestore — comparison, the agent's
+ * analyse_clause tool, reopening an analysis — saw the empty array from
+ * Stage 0 and reported covered topics as missing.
+ */
+export function clauseAnalysisPatch(
+  clause: Clause,
+  finding: ClauseFinding | null
+): Pick<Clause, "clauseType" | "alsoCovers"> & { finding: ClauseFinding | null } {
+  return {
+    clauseType: clause.clauseType,
+    alsoCovers: clause.alsoCovers ?? [],
+    finding,
+  };
+}
+
 /** Stages 2 and 4 write back onto the clauses created in Stage 0. */
 export async function updateClauseAnalysis(
   analysisId: string,
@@ -116,7 +137,7 @@ export async function updateClauseAnalysis(
   for (const clause of clauses) {
     batch.set(
       col.doc(clause.id),
-      { clauseType: clause.clauseType, finding: byClause.get(clause.id) ?? null },
+      clauseAnalysisPatch(clause, byClause.get(clause.id) ?? null),
       { merge: true }
     );
   }
