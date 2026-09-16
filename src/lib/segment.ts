@@ -235,5 +235,6 @@ export async function segmentDocument(doc: ExtractedDocument): Promise<Clause[]>
     endOffset: c.endOffset,
     page: doc.pageForOffset(c.startOffset),
     clauseType: null,
+    alsoCovers: [],
   }));
 }

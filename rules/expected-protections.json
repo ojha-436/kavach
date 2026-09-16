@@ -1,0 +1,136 @@
+[
+  {
+    "docType": "rental",
+    "clauseType": "deposit_refund",
+    "title": "No deadline for returning your deposit",
+    "absenceMeans": "The agreement never says when the deposit must come back to you after you hand over the flat. Without a date, a landlord who simply delays has broken no term of the contract, and recovering the money becomes your problem to chase.",
+    "negotiationAsk": "Ask for a specific window, e.g. 'the deposit shall be refunded within 15 days of handover of vacant possession, less any itemised deductions'."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "landlord_entry",
+    "title": "No notice required before the landlord enters",
+    "absenceMeans": "Nothing in this agreement requires the landlord to tell you before entering. Where the Model Tenancy Act 2021 has been adopted it requires 24 hours' notice, but in states that have not adopted it this protection exists only if your agreement creates it.",
+    "negotiationAsk": "Ask for a clause requiring at least 24 hours' written or message notice before any entry, except in a genuine emergency."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "maintenance_repairs",
+    "title": "No split of who pays for repairs",
+    "absenceMeans": "The agreement does not allocate repair costs. The Transfer of Property Act supplies defaults, but they are general, and an unallocated structural repair is the most common source of mid-tenancy disputes.",
+    "negotiationAsk": "Ask for the agreement to state explicitly who pays for structural repairs versus routine maintenance and minor wear."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "damage_deduction",
+    "title": "No requirement to itemise deductions",
+    "absenceMeans": "There is no term obliging the landlord to show you what was deducted from your deposit and why. Without it, you are arguing after the fact about money someone else is already holding.",
+    "negotiationAsk": "Ask for a joint inspection at handover and an itemised list of any deductions as a precondition to withholding any part of the deposit."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "eviction_termination",
+    "title": "No defined notice before you must vacate",
+    "absenceMeans": "The agreement does not fix how much notice the landlord must give you. Section 106 of the Transfer of Property Act supplies a default of 15 days for most residential leases, but relying on a statutory default is weaker than a written term.",
+    "negotiationAsk": "Ask for a stated notice period before termination, ideally matching the notice you must give."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "disclosure_defects",
+    "title": "No record of the property's condition at handover",
+    "absenceMeans": "Nothing records what state the flat was in when you moved in. At the end of the tenancy there is then no agreed baseline, and pre-existing damage is easy to attribute to you.",
+    "negotiationAsk": "Ask for a dated inspection report with photographs to be attached as a schedule to the agreement."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "fixtures_removal",
+    "title": "No stated right to remove what you installed",
+    "absenceMeans": "The agreement is silent on fittings you pay for and install yourself. The Transfer of Property Act gives a default right to remove them before handover, but a written term avoids the argument entirely.",
+    "negotiationAsk": "Ask for a clause confirming you may remove fixtures you installed, provided you restore the property."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "renewal_terms",
+    "title": "No renewal process",
+    "absenceMeans": "There is no stated process for renewing. You have no contractual right to be told in advance whether you can stay, which makes planning difficult and weakens your position on any renewal rent.",
+    "negotiationAsk": "Ask for a right of first refusal to renew on similar terms, with notice a fixed number of days before expiry."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "utilities_charges",
+    "title": "No itemisation of bills and charges",
+    "absenceMeans": "The agreement does not say who pays electricity, water, society maintenance or parking. Unclear cost-sharing terms are a routine source of dispute, and an ambiguous term is generally read narrowly rather than in the drafter's favour.",
+    "negotiationAsk": "Ask for each charge and the paying party to be listed explicitly."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "transfer_of_property_sale",
+    "title": "No protection if the landlord sells",
+    "absenceMeans": "The agreement does not say what happens to your tenancy if the property changes hands. Section 109 of the Transfer of Property Act means a buyer generally steps into the landlord's shoes, but the agreement saying so leaves far less room for argument.",
+    "negotiationAsk": "Ask for a clause confirming the tenancy survives a change of ownership on the same terms."
+  },
+  {
+    "docType": "rental",
+    "clauseType": "registration_stamping",
+    "title": "No stamp duty or registration provision",
+    "absenceMeans": "The agreement does not address stamping or registration. An instrument that is not duly stamped cannot be admitted in evidence under Section 35 of the Indian Stamp Act until the duty and penalty are paid, which can leave you unable to prove your own terms in court.",
+    "negotiationAsk": "Ask for the agreement to be executed on stamp paper of the correct value for your state, or e-stamped, and to say who bears that cost."
+  },
+
+  {
+    "docType": "employment",
+    "clauseType": "termination_notice",
+    "title": "No notice period stated",
+    "absenceMeans": "The letter does not say how much notice either side must give. Without it you have no contractual certainty about how quickly you could be asked to leave, or what you owe if you resign.",
+    "negotiationAsk": "Ask for the notice period to be stated for both sides, ideally symmetrically."
+  },
+  {
+    "docType": "employment",
+    "clauseType": "termination_for_cause",
+    "title": "No process before dismissal for cause",
+    "absenceMeans": "There is no stated procedure — show-cause notice, inquiry, opportunity to respond — before a dismissal for misconduct. Whether statutory protection applies turns on whether you are a 'workman' under the Industrial Disputes Act, which depends on your actual duties rather than your job title.",
+    "negotiationAsk": "Ask for a written inquiry process, with notice of the allegation and an opportunity to respond, before any termination for cause."
+  },
+  {
+    "docType": "employment",
+    "clauseType": "probation",
+    "title": "No maximum probation or confirmation date",
+    "absenceMeans": "The letter does not cap probation or fix a confirmation review. An open-ended probation leaves you without the fuller notice and process protections of a confirmed employee, for an indefinite period.",
+    "negotiationAsk": "Ask for a maximum cumulative probation period and a defined confirmation review date."
+  },
+  {
+    "docType": "employment",
+    "clauseType": "pf_esi",
+    "title": "No statement on provident fund",
+    "absenceMeans": "The letter does not say how PF is treated. Where the EPF Act covers the establishment, enrolment is mandatory and the employer's contribution cannot be funded by cutting your wages — but a CTC figure that quietly absorbs it is a common surprise.",
+    "negotiationAsk": "Ask for written confirmation of whether PF contribution is on top of, or carved out of, the stated CTC."
+  },
+  {
+    "docType": "employment",
+    "clauseType": "gratuity",
+    "title": "No mention of gratuity",
+    "absenceMeans": "Gratuity after five years of continuous service is a statutory entitlement at covered establishments and does not depend on the letter mentioning it. Its absence does not remove the right, but it does mean nothing in writing acknowledges it.",
+    "negotiationAsk": "No change is strictly needed — gratuity applies by law regardless. Ask for confirmation that the establishment is covered."
+  },
+  {
+    "docType": "employment",
+    "clauseType": "posh_grievance",
+    "title": "No reference to the Internal Committee",
+    "absenceMeans": "The letter does not mention the Internal Committee that every establishment with ten or more employees must constitute under the POSH Act 2013 to receive complaints of sexual harassment. The obligation exists regardless, but you are not being told how to reach it.",
+    "negotiationAsk": "Ask for the Internal Committee's existence and contact route to be confirmed in writing."
+  },
+  {
+    "docType": "employment",
+    "clauseType": "bonus",
+    "title": "No statement on bonus",
+    "absenceMeans": "The letter does not address bonus. Where the Payment of Bonus Act covers your role and establishment the statutory minimum applies whatever the letter says, but many salaried roles sit above the Act's wage ceiling, in which case any bonus is purely contractual and you have nothing in writing.",
+    "negotiationAsk": "Ask whether you fall within the Payment of Bonus Act, and if not, ask for any bonus terms to be stated in writing."
+  },
+  {
+    "docType": "employment",
+    "clauseType": "maternity_leave",
+    "title": "No maternity benefit provision",
+    "absenceMeans": "The letter does not address maternity benefit. The Maternity Benefit Act 1961 applies regardless and any term less favourable than it is void, but nothing here records the entitlement.",
+    "negotiationAsk": "Ask for the statutory entitlement to be acknowledged, or for the letter to be silent and let the Act govern."
+  }
+]

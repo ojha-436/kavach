@@ -3,6 +3,8 @@ import {
   Analysis,
   AnalysisStatus,
   Clause,
+  ClauseFinding,
+  ExpectedProtection,
   Judgment,
   JudgmentParagraph,
 } from "./schema";
@@ -96,6 +98,60 @@ export async function listClauses(analysisId: string): Promise<Clause[]> {
     .orderBy("startOffset", "asc")
     .get();
   return snap.docs.map((d) => d.data() as Clause);
+}
+
+/** Stages 2 and 4 write back onto the clauses created in Stage 0. */
+export async function updateClauseAnalysis(
+  analysisId: string,
+  clauses: Clause[],
+  findings: ClauseFinding[]
+): Promise<void> {
+  const db = client();
+  const col = db.collection("analyses").doc(analysisId).collection("clauses");
+  const byClause = new Map(findings.map((f) => [f.clauseId, f]));
+
+  const batch = db.batch();
+  for (const clause of clauses) {
+    batch.set(
+      col.doc(clause.id),
+      { clauseType: clause.clauseType, finding: byClause.get(clause.id) ?? null },
+      { merge: true }
+    );
+  }
+  await batch.commit();
+}
+
+export type DocumentReport = {
+  riskScore: number;
+  counts: Record<string, number>;
+  missingProtections: ExpectedProtection[];
+  unanalysed: string[];
+  droppedCitations: number;
+  generatedAt: string;
+};
+
+export async function writeReport(
+  analysisId: string,
+  report: DocumentReport
+): Promise<void> {
+  await client()
+    .collection("analyses")
+    .doc(analysisId)
+    .collection("report")
+    .doc("summary")
+    .set(report);
+}
+
+export async function getReport(
+  analysisId: string
+): Promise<DocumentReport | null> {
+  const snap = await client()
+    .collection("analyses")
+    .doc(analysisId)
+    .collection("report")
+    .doc("summary")
+    .get();
+  return snap.exists ? (snap.data() as DocumentReport) : null;
 }
 
 /** Ties an anonymous analysis to a signed-in user so it survives past the 24h TTL. */

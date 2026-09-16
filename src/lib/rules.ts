@@ -1,11 +1,26 @@
 import rental from "../../rules/rental.json";
 import employment from "../../rules/employment.json";
-import { DocType, RuleCard, RulePack } from "./schema";
+import expectedProtections from "../../rules/expected-protections.json";
+import {
+  DocType,
+  ExpectedProtection,
+  ExpectedProtectionPack,
+  RuleCard,
+  RulePack,
+} from "./schema";
 
 const PACKS: Record<DocType, RulePack> = {
   rental: RulePack.parse(rental),
   employment: RulePack.parse(employment),
 };
+
+const PROTECTIONS: ExpectedProtectionPack =
+  ExpectedProtectionPack.parse(expectedProtections);
+
+/** Stage 5: the terms whose absence actually costs the reader something. */
+export function protectionsFor(docType: DocType): ExpectedProtection[] {
+  return PROTECTIONS.filter((p) => p.docType === docType);
+}
 
 /** Stage 3 — deterministic join. No embeddings, no top-K, no model call. */
 export function rulesFor(docType: DocType, clauseType: string): RuleCard[] {

@@ -162,21 +162,39 @@ the 24h deletion promised in the privacy pitch until now).
 
 ### Day 3 — The pipeline, end to end, rental only
 
-- [ ] Stage 1 document frame: doc type, state, and **which side of the contract the user is on**
-- [ ] Stage 2 clause typing against the taxonomy
-- [ ] Stage 3 deterministic rule join
-- [ ] Stage 4 parallel per-clause adjudication, Zod-validated structured output
-- [ ] Firestore progress document plus client listener, so clauses light up live as they are judged
+- [x] Stage 1 document frame: doc type, state, and which side of the contract the user is on
+- [x] Stage 2 clause typing against the taxonomy, plus secondary topics a clause also covers
+- [x] Stage 3 deterministic rule join
+- [x] Stage 4 parallel per-clause adjudication, Zod-validated structured output, with `ruleId`
+      validated against the pack and statute/section re-derived from it rather than trusted
+- [~] Live progress: the client calls the adjudicate endpoint after segmentation and shows a
+      working state. Clauses do not yet light up one by one — the Firestore snapshot listener is
+      still the nicer version of this and is not built
 
-**DoD:** upload a bad rental agreement, get real verdicts with real citations in under 30 seconds.
+**DoD:** met. A deliberately bad rental agreement returns 1 VOID (court-ouster clause, S.28 ICA),
+3 partly unenforceable (deposit cap, eviction without notice, unstamped), 4 one-sided, risk score
+41/100, **zero dropped citations**, 1 of 10 clauses correctly left unanalysed as outside the pack.
 
 ### Day 4 — The differentiating outputs
 
-- [ ] Stage 5 absence diff: expected clause types minus found clause types
-- [ ] Stage 6 synthesis: risk score, top-5 actions, negotiation email draft, obligations timeline
-- [ ] A report screen worth screenshotting
+- [x] Stage 5 absence diff — **deterministic, no model call.** Curated `expected-protections.json`
+      minus every topic the document covers. Cannot invent a missing protection, cannot fail to
+      notice one
+- [~] Stage 6 synthesis: risk score and verdict counts are computed and shown. Negotiation email
+      and obligations timeline are not built
+- [x] A report screen worth screenshotting
 
-**DoD:** tonight you have something you would be willing to demo. Everything after this is upside.
+> The absence diff is **not** a plain set difference over the rule pack, which is what the original
+> plan implied. The pack contains clause types you actively do not want present, so that diff would
+> announce "your contract is missing a non-compete clause". The expected set had to be curated
+> separately, with the explanation of what each absence costs you curated alongside it.
+>
+> One bug this surfaced: Stage 2 assigns one label per clause, so a clause allocating both repairs
+> and utility bills was reported as "missing a utilities term" — a visibly false claim. Clause
+> typing now also returns secondary topics, used by Stage 5 only, never for rule joining. Missing
+> protections on the test document dropped from 6 to 3, all 3 genuinely absent.
+
+**DoD:** met.
 
 ### Day 5 — Employment type, the agent, refusal
 

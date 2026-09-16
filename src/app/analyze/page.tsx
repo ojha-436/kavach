@@ -4,7 +4,19 @@ import { useMemo, useRef, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AskPanel } from "@/components/AskPanel";
 import { useAuth } from "@/components/AuthProvider";
-import { Clause, DocumentKind } from "@/lib/schema";
+import {
+  FindingCard,
+  MissingProtections,
+  RiskScore,
+  VerdictDot,
+  verdictHighlight,
+} from "@/components/Verdict";
+import {
+  Clause,
+  ClauseFinding,
+  DocumentKind,
+  ExpectedProtection,
+} from "@/lib/schema";
 
 type Status = "idle" | "uploading" | "working" | "ready" | "error";
 
@@ -31,6 +43,38 @@ export default function AnalyzePage() {
   const [covered, setCovered] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const clauseRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+
+  // Stages 2/4/5 run after the clauses are already on screen.
+  const [judging, setJudging] = useState(false);
+  const [findings, setFindings] = useState<Record<string, ClauseFinding>>({});
+  const [missing, setMissing] = useState<ExpectedProtection[]>([]);
+  const [report, setReport] = useState<{
+    riskScore: number;
+    counts: Record<string, number>;
+    unanalysed: string[];
+  } | null>(null);
+
+  async function adjudicate(id: string) {
+    setJudging(true);
+    try {
+      const res = await fetch(`/api/analyses/${id}/adjudicate`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.covered) return;
+
+      setClauses(data.clauses ?? []);
+      setFindings(
+        Object.fromEntries(
+          (data.findings ?? []).map((f: ClauseFinding) => [f.clauseId, f])
+        )
+      );
+      setMissing(data.missingProtections ?? []);
+      setReport(data.report ?? null);
+    } catch {
+      // Segmentation still stands; the verdict pass simply didn't land.
+    } finally {
+      setJudging(false);
+    }
+  }
 
   async function handleFile(file: File) {
     setError(null);
@@ -79,7 +123,12 @@ export default function AnalyzePage() {
       setClauses(data.clauses);
       setKind(data.kind);
       setCovered(data.covered);
+      setFindings({});
+      setMissing([]);
+      setReport(null);
       setStatus("ready");
+
+      if (data.covered) void adjudicate(data.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setStatus("error");
@@ -128,6 +177,12 @@ export default function AnalyzePage() {
               {clauses.length} clauses
               {kind?.state ? ` · ${kind.state}` : ""}
             </p>
+            {judging && (
+              <p className="font-sans text-sm text-ink-faint">
+                Checking each clause against the statute…
+              </p>
+            )}
+            {report && <RiskScore score={report.riskScore} counts={report.counts} />}
             <button
               onClick={() => {
                 setStatus("idle");
@@ -173,7 +228,8 @@ export default function AnalyzePage() {
                     className={`cursor-pointer transition-colors ${
                       selectedId === seg.clauseId
                         ? "bg-attest-wash"
-                        : "hover:bg-paper-sunk"
+                        : verdictHighlight(findings[seg.clauseId!]?.verdict) ||
+                          "hover:bg-paper-sunk"
                     }`}
                   >
                     {seg.text}
@@ -202,10 +258,33 @@ export default function AnalyzePage() {
                   <p className="mt-0.5 font-display text-ink">
                     {c.heading ?? "Untitled clause"}
                   </p>
+                  <VerdictDot verdict={findings[c.id]?.verdict} />
                 </button>
               ))}
             </aside>
           </div>
+
+          {selectedId && findings[selectedId] && (
+            <section className="border-t border-rule py-8">
+              <h2 className="font-sans text-xs font-semibold tracking-wide text-ink-faint">
+                {clauses.find((c) => c.id === selectedId)?.heading ?? "This clause"}
+              </h2>
+              <div className="mt-4">
+                <FindingCard finding={findings[selectedId]} />
+              </div>
+            </section>
+          )}
+
+          <MissingProtections protections={missing} />
+
+          {report && report.unanalysed.length > 0 && (
+            <p className="mt-8 border-t border-rule pt-5 font-sans text-xs text-ink-faint">
+              {report.unanalysed.length} of {clauses.length} clauses fall outside the
+              curated rule pack and were left unanalysed rather than guessed at. That is
+              a deliberate precision-over-recall trade, and it is why the citations above
+              can be trusted.
+            </p>
+          )}
 
           <AskPanel
             analysisId={analysisId ?? undefined}

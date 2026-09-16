@@ -75,7 +75,15 @@ export const Clause = z.object({
   startOffset: z.number().int(),
   endOffset: z.number().int(),
   page: z.number().int().nullable(),
+  /** Primary label. Drives the Stage 3 rule join. */
   clauseType: z.string().nullable(),
+  /**
+   * Other taxonomy topics this clause also addresses. Used only by the
+   * Stage 5 absence diff, never for rule joining — a clause that allocates
+   * both repairs and utility bills must not be reported as "missing a
+   * utilities term", but it also shouldn't be adjudicated twice.
+   */
+  alsoCovers: z.array(z.string()).optional().default([]),
 });
 export type Clause = z.infer<typeof Clause>;
 
@@ -97,6 +105,26 @@ export type RuleCard = z.infer<typeof RuleCard>;
 
 export const RulePack = z.array(RuleCard);
 export type RulePack = z.infer<typeof RulePack>;
+
+/**
+ * Stage 5 input. Curated rather than derived: a plain set difference over the
+ * rule pack would report "your contract is missing a non-compete clause",
+ * because the pack contains clause types you actively do NOT want present.
+ * Absence is only meaningful for terms that protect the reader, and the
+ * explanation of what the absence costs them is curated too, so Stage 5 needs
+ * no model call and cannot invent a missing protection.
+ */
+export const ExpectedProtection = z.object({
+  docType: DocType,
+  clauseType: z.string(),
+  title: z.string(),
+  absenceMeans: z.string(),
+  negotiationAsk: z.string(),
+});
+export type ExpectedProtection = z.infer<typeof ExpectedProtection>;
+
+export const ExpectedProtectionPack = z.array(ExpectedProtection);
+export type ExpectedProtectionPack = z.infer<typeof ExpectedProtectionPack>;
 
 /**
  * 'ingesting' -> extracting text from the uploaded file

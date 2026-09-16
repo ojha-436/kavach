@@ -27,20 +27,18 @@ with them anyway, because nobody ever told them.
 | "Tenant shall not approach any court" | **Void.** S.28 ICA |
 | Agreement under-stamped | **Inadmissible in evidence.** S.35, Indian Stamp Act 1899 |
 
-Most legal-AI tools answer "what does this document say?" Kavach is built to answer two harder
-questions: **which clauses cannot legally be used against you**, and **what protection is missing**
-— an absence being structurally invisible to anything that only reads what's there.
+Most legal-AI tools answer "what does this document say?" Kavach answers two harder questions:
+**which clauses cannot legally be used against you**, and **what protection is missing** — an
+absence being structurally invisible to anything that only reads what's there.
 
 ![Kavach home](docs/screenshots/01-home.png)
 
-> **Build status — read this before judging the claims above.**
-> This is a hackathon project mid-build. What works today: document ingest and clause segmentation,
-> document-type detection, the curated rule pack reachable through the agent, the full judgment
-> explainer with span-validated citations and translation, Google sign-in, and history.
-> **Not yet built: automatic per-clause verdicts (Stage 4) and the missing-protection diff (Stage 5).**
-> The rule pack, schemas and validation they depend on are in place; the passes that drive them are
-> not. The stage table below marks exactly what is and isn't wired up.
-> The VOID stamp on the landing page above is an illustration of the target output, not live output.
+> **Build status.** The clause pipeline now runs end to end: ingest, segmentation, document-type
+> detection, clause typing, the deterministic rule join, per-clause adjudication with citation
+> validation, and the absence diff. The judgment side — explanation, span-validated citations,
+> translation — is complete, as are Google sign-in and history. Still unbuilt: Stage 6 synthesis
+> (negotiation email, obligations timeline) and OCR for scanned PDFs. The stage table below is
+> authoritative.
 
 ---
 
@@ -55,12 +53,28 @@ There is no "pick your document type" step — the type is detected. But the cur
 **residential rental agreements and employment offer letters only**, and when a document falls
 outside that, the app says so rather than bluffing.
 
-Per-clause verdict badges are the next stage and aren't live yet — today the clause list is the
-navigable structure, and legal analysis happens through the Ask panel below it.
+Each clause is then typed, joined to its statutory rules, and judged. The document itself is tinted
+by verdict, so the damage is visible in the text rather than in a separate report.
 
-![Document analysis](docs/screenshots/05-document.png)
+![Document analysis with verdicts](docs/screenshots/05-document.png)
 
-### 2 · Ask, with the sources shown
+Click a clause for the finding: what it does to you in plain English, the section it falls foul of,
+and the exact counter-language to ask for.
+
+![A VOID finding](docs/screenshots/07-verdict-finding.png)
+
+### 2 · See what *isn't* there
+
+The output nobody else ships. Not what your contract says — what it doesn't.
+
+This is a set operation, not a generation: a curated list of protections that actually matter,
+minus every topic the document covers. It cannot invent a missing protection, and it cannot fail to
+notice one. (The expected list is curated precisely because a naive diff over the rule pack would
+announce that your contract is "missing a non-compete clause".)
+
+![Missing protections](docs/screenshots/08-missing-protections.png)
+
+### 3 · Ask, with the sources shown
 
 Questions are answered beside the document itself. Every answer lists which tools produced it —
 read the document, looked up the statute, read the judgment — so the grounding claim can be
@@ -68,7 +82,7 @@ read the document, looked up the statute, read the judgment — so the grounding
 
 ![Ask about a document](docs/screenshots/06-ask.png)
 
-### 3 · Understand a judgment
+### 4 · Understand a judgment
 
 A judgment runs to a hundred pages before it says who won. Kavach sets out what the court was
 asked, what it decided, why, and what it expressly **does not** decide — with every line traceable
@@ -80,7 +94,7 @@ Search by subject or party, and filter by court, year, or case number.
 
 ![Judgment search](docs/screenshots/02-judgments-search.png)
 
-### 4 · Read it in your own language
+### 5 · Read it in your own language
 
 Explanations translate into twelve Indian languages. Terms of art keep the English in brackets, and
 **paragraph citations are reattached from the validated English original** — so a translation error
@@ -100,13 +114,17 @@ fabricated section numbers, and a wrong citation in a legal demo is fatal. Cover
 what's curated — a deliberate precision-over-recall trade.
 
 **2 · Fabricated citations are structurally unrenderable.**
-For judgments this is **live today**: every paragraph citation is checked against the real paragraph
-set after generation, and claims whose citations don't resolve are **deleted before render, with the
-count shown to the user** ("No statements failed that check"). We don't ask the model to be honest;
-we make dishonesty impossible to display.
+On both sides, and after generation rather than by asking nicely:
 
-The same mechanism is written for the contract side — `isValidRuleId` validates a `ruleId` against
-the loaded pack — but it isn't exercised yet, because Stage 4 doesn't produce rule IDs yet.
+- **Contracts** — every `ruleId` a verdict cites must exist in the loaded pack. Ones that don't are
+  deleted, and a finding that loses *all* its citations is forced to `confidence: LOW` and flagged
+  as needing a lawyer. Statute and section are then **re-derived from the pack rather than trusted
+  from the model's output**, so a citation cannot even be subtly misquoted.
+- **Judgments** — every paragraph citation is checked against the real paragraph set. Claims whose
+  citations don't resolve are deleted, and the count is shown to the reader ("No statements failed
+  that check").
+
+We don't ask the model to be honest; we make dishonesty impossible to display.
 
 **3 · The agent has no free-form legal answer path.**
 It holds five tools — `lookup_rule`, `analyse_clause`, `search_judgments`, `explain_judgment`,
@@ -159,11 +177,11 @@ AI calls, not from more services.
 |---|---|---|---|
 | **0 · Ingest & segment** | GCS → text with character offsets → `Clause[]`. Numbering heuristics, then one LLM repair pass that may only *merge adjacent* clauses — never invent offsets | none / Flash | ✅ built |
 | **1 · Document frame** | Detect document type, governing state, which side the user is on | Flash | ✅ built |
-| **2 · Clause typing** | Each clause → one label from the taxonomy | Flash | ⬜ not built — `clauseType` is currently `null` |
-| **3 · Rule retrieval** | `(docType, clauseType)` → `RuleCard[]` | **deterministic** | ✅ built, reachable via the agent naming a clause type; not yet driven by Stage 2 |
-| **4 · Adjudication** | Per clause: verdict, severity, plain English, statutory basis, negotiation ask | Flash | ⬜ not built — schema and validation exist, the pass does not |
-| **5 · Absence diff** | Expected clause types − found clause types = missing protections | set ops | ⬜ not built |
-| **6 · Synthesis** | Risk score, top actions, negotiation email | Flash | ⬜ not built |
+| **2 · Clause typing** | Each clause → one label from the taxonomy, plus any secondary topics it also covers | Flash | ✅ built |
+| **3 · Rule retrieval** | `(docType, clauseType)` → `RuleCard[]` | **deterministic** | ✅ built |
+| **4 · Adjudication** | Per clause: verdict, severity, plain English, statutory basis, negotiation ask | Flash | ✅ built |
+| **5 · Absence diff** | Curated expected protections − topics the document covers | **deterministic** | ✅ built |
+| **6 · Synthesis** | Negotiation email, obligations timeline | Flash | ⬜ not built — risk score and verdict counts are computed, the drafting is not |
 | **7 · Grounded Q&A** | The agent's tool loop | Flash | ✅ built |
 
 The clause — not the document — is the unit of context. Nothing ever sees 40 pages and is asked to
@@ -179,7 +197,9 @@ real paragraph set → optionally translate, reattaching citations from the vali
 
 `VOID` · `UNENFORCEABLE_IN_PART` · `ONEROUS_BUT_VALID` · `STANDARD` · `FAVOURABLE`
 
-Defined in `src/lib/schema.ts` and validated end-to-end, but not yet emitted — that's Stage 4.
+A clause with no curated rule to judge it against is **not** adjudicated — it's reported as
+unanalysed, with the count shown. There would be nothing to judge it against except the model's own
+legal knowledge, which is exactly what this design forbids.
 
 ---
 
