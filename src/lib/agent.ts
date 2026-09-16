@@ -150,9 +150,15 @@ async function runTool(call: ToolCall): Promise<unknown> {
       const clauses = await listClauses(analysisId);
       const clauseId = call.args.clauseId as string | undefined;
 
+      const covered =
+        analysis.docType === "rental" || analysis.docType === "employment";
+
       if (!clauseId) {
         return {
-          docTypeHint: analysis.docTypeHint,
+          documentType: analysis.docLabel,
+          ruleCoverage: covered
+            ? `Curated ${analysis.docType} rules are available.`
+            : "No curated statutory rules cover this document type. You may describe what the document says, but you may not state what Indian law provides about it.",
           clauses: clauses.map((c) => ({
             id: c.id,
             heading: c.heading,
@@ -165,10 +171,16 @@ async function runTool(call: ToolCall): Promise<unknown> {
       const clause = clauses.find((c) => c.id === clauseId);
       if (!clause) return { error: "No such clause." };
       const rules =
-        analysis.docTypeHint && clause.clauseType
-          ? rulesFor(analysis.docTypeHint, clause.clauseType)
+        covered && clause.clauseType
+          ? rulesFor(analysis.docType as DocType, clause.clauseType)
           : [];
-      return { clause, matchedRules: rules };
+      return {
+        clause,
+        matchedRules: rules,
+        ruleCoverage: covered
+          ? undefined
+          : "This document is outside the curated rule pack. Report what the clause says; do not assert what the law provides about it.",
+      };
     }
 
     case "search_judgments": {
@@ -222,11 +234,37 @@ export type AgentStep =
   | { type: "tool"; name: string; args: Record<string, unknown> }
   | { type: "answer"; text: string };
 
+export type AgentContext = {
+  /** An analysis the user currently has open, if any. */
+  analysisId?: string | null;
+  /** A judgment the user currently has open, if any. */
+  judgmentId?: string | null;
+};
+
+function contextPreamble(ctx: AgentContext): string {
+  const lines: string[] = [];
+  if (ctx.analysisId) {
+    lines.push(
+      `The user is looking at their uploaded document, analysisId "${ctx.analysisId}". Use analyse_clause with that id for anything about "my contract", "this document", "clause N", or similar.`
+    );
+  }
+  if (ctx.judgmentId) {
+    lines.push(
+      `The user is reading judgment "${ctx.judgmentId}". Use explain_judgment with that id for anything about "this judgment", "the case", "the verdict", or similar. Do not search for a different case unless they clearly ask for one.`
+    );
+  }
+  return lines.join("\n");
+}
+
 export async function runAgent(
-  history: ConversationTurn[]
+  history: ConversationTurn[],
+  ctx: AgentContext = {}
 ): Promise<{ steps: AgentStep[]; answer: string; turns: ConversationTurn[] }> {
   const steps: AgentStep[] = [];
-  const working = [...history];
+  const preamble = contextPreamble(ctx);
+  const working = preamble
+    ? [{ role: "user" as const, text: preamble }, ...history]
+    : [...history];
 
   for (let i = 0; i < MAX_STEPS; i++) {
     const turn = await converse({

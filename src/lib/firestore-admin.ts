@@ -20,7 +20,7 @@ export async function createAnalysis(params: {
   id: string;
   fileName: string;
   gcsUri: string;
-  docTypeHint: Analysis["docTypeHint"];
+  ownerUid?: string | null;
 }): Promise<Analysis> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + TTL_HOURS * 60 * 60 * 1000);
@@ -30,15 +30,33 @@ export async function createAnalysis(params: {
     status: "ingesting",
     fileName: params.fileName,
     gcsUri: params.gcsUri,
-    docTypeHint: params.docTypeHint,
+    docType: "other",
+    docLabel: "Identifying…",
+    state: null,
     progress: { total: 0, done: 0 },
     error: null,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
 
-  await client().collection("analyses").doc(params.id).set(analysis);
+  await client()
+    .collection("analyses")
+    .doc(params.id)
+    // A signed-in user owns their document from the moment it is created, so
+    // it survives the 24h TTL without a separate "save" step.
+    .set(
+      params.ownerUid
+        ? { ...analysis, ownerUid: params.ownerUid, expiresAt: null }
+        : analysis
+    );
   return analysis;
+}
+
+export async function setAnalysisKind(
+  id: string,
+  kind: { docType: Analysis["docType"]; docLabel: string; state: string | null }
+): Promise<void> {
+  await client().collection("analyses").doc(id).set(kind, { merge: true });
 }
 
 export async function setAnalysisStatus(
@@ -101,6 +119,57 @@ export async function listAnalysesForUser(uid: string): Promise<Analysis[]> {
   return snap.docs.map((d) => d.data() as Analysis);
 }
 
+/* ---------- Session history ---------- */
+
+export type ActivityKind = "upload" | "question" | "judgment_search" | "judgment_view";
+
+export type ActivityEntry = {
+  id: string;
+  uid: string;
+  kind: ActivityKind;
+  /** What the user sees in the history list. */
+  summary: string;
+  /** Where clicking the entry goes, when there is somewhere to go. */
+  href: string | null;
+  detail: string | null;
+  createdAt: string;
+};
+
+/**
+ * History is per signed-in user. Anonymous sessions are not logged at all —
+ * writing an activity trail for someone who never identified themselves
+ * would be collecting more than the product needs, which is the opposite of
+ * what the privacy pitch promises.
+ */
+export async function recordActivity(
+  entry: Omit<ActivityEntry, "id" | "createdAt">
+): Promise<void> {
+  const db = client();
+  const ref = db.collection("users").doc(entry.uid).collection("activity").doc();
+  await ref.set({
+    ...entry,
+    id: ref.id,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function listActivity(uid: string, limit = 100): Promise<ActivityEntry[]> {
+  const snap = await client()
+    .collection("users")
+    .doc(uid)
+    .collection("activity")
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+  return snap.docs.map((d) => d.data() as ActivityEntry);
+}
+
+export async function clearActivity(uid: string): Promise<void> {
+  const col = client().collection("users").doc(uid).collection("activity");
+  const snap = await col.get();
+  await Promise.all(snap.docs.map((d) => d.ref.delete()));
+}
+
 /* ---------- Judgments ---------- */
 
 export type JudgmentRecord = {
@@ -121,6 +190,8 @@ export async function writeJudgment(record: JudgmentRecord): Promise<void> {
     searchText: [
       record.judgment.title,
       record.judgment.citation ?? "",
+      record.judgment.court,
+      record.judgment.caseNumber ?? "",
       record.paragraphs
         .slice(0, 12)
         .map((p) => p.text)
@@ -161,26 +232,77 @@ export async function getJudgment(id: string): Promise<JudgmentRecord | null> {
   return { judgment: snap.data() as Judgment, paragraphs };
 }
 
+export type JudgmentFilters = {
+  court?: string | null;
+  year?: string | null;
+  caseNumber?: string | null;
+};
+
+export type JudgmentHit = Pick<
+  Judgment,
+  "id" | "title" | "citation" | "year" | "court" | "caseNumber"
+>;
+
 export async function searchJudgments(
-  query: string
-): Promise<Array<Pick<Judgment, "id" | "title" | "citation" | "year">>> {
+  query: string,
+  filters: JudgmentFilters = {}
+): Promise<JudgmentHit[]> {
   const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
-  if (terms.length === 0) return [];
+  const caseNo = filters.caseNumber?.toLowerCase().trim();
+
+  // A filter-only search is valid: "show me everything from this court in
+  // 2024" is a reasonable thing to ask without any keywords.
+  const hasCriteria =
+    terms.length > 0 || !!caseNo || !!filters.court || !!filters.year;
+  if (!hasCriteria) return [];
 
   const snap = await client().collection("judgments").limit(500).get();
+
   return snap.docs
     .map((d) => d.data() as Judgment & { searchText?: string })
+    .filter((j) => !filters.court || j.court === filters.court)
+    .filter((j) => !filters.year || j.year === filters.year)
+    .filter((j) => {
+      if (!caseNo) return true;
+      const digits = (s: string) => s.replace(/[^0-9]/g, "");
+      const hay = `${j.caseNumber ?? ""} ${j.citation ?? ""} ${j.id}`.toLowerCase();
+      // Match on digits too, so "11030/2024" finds "Civil Appeal No. 11030 of 2024".
+      return hay.includes(caseNo) || digits(hay).includes(digits(caseNo));
+    })
     .map((j) => ({
       j,
-      score: terms.filter((t) => (j.searchText ?? "").includes(t)).length,
+      score: terms.length
+        ? terms.filter((t) => (j.searchText ?? "").includes(t)).length
+        : 1,
     }))
     .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
+    .sort((a, b) => b.score - a.score || Number(b.j.year) - Number(a.j.year))
+    .slice(0, 20)
     .map(({ j }) => ({
       id: j.id,
       title: j.title,
       citation: j.citation,
       year: j.year,
+      court: j.court,
+      caseNumber: j.caseNumber,
     }));
+}
+
+/** Distinct courts and years present in the corpus, for the filter controls. */
+export async function judgmentFacets(): Promise<{
+  courts: string[];
+  years: string[];
+}> {
+  const snap = await client().collection("judgments").limit(500).get();
+  const courts = new Set<string>();
+  const years = new Set<string>();
+  for (const d of snap.docs) {
+    const j = d.data() as Judgment;
+    if (j.court) courts.add(j.court);
+    if (j.year) years.add(j.year);
+  }
+  return {
+    courts: [...courts].sort(),
+    years: [...years].sort((a, b) => Number(b) - Number(a)),
+  };
 }

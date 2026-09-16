@@ -3,13 +3,22 @@ import { v4 as uuidv4 } from "uuid";
 import { downloadFromGcs } from "@/lib/storage";
 import { extractText } from "@/lib/extract";
 import { segmentDocument } from "@/lib/segment";
-import { createAnalysis, setAnalysisStatus, writeClauses } from "@/lib/firestore-admin";
-import { DocType } from "@/lib/schema";
+import { detectDocumentKind } from "@/lib/frame";
+import {
+  createAnalysis,
+  setAnalysisStatus,
+  setAnalysisKind,
+  writeClauses,
+  recordActivity,
+} from "@/lib/firestore-admin";
+import { getSessionUser } from "@/lib/auth-server";
 
-/** Stage 0 (Architecture SS4.2): GCS -> text + offsets -> Clause[]. No adjudication yet. */
+export const maxDuration = 300;
+
+/** Stage 0 (ingest + segment) and Stage 1 (document frame). No verdicts yet. */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const { gcsUri, fileName, contentType, docTypeHint } = body ?? {};
+  const { gcsUri, fileName, contentType } = body ?? {};
 
   if (
     typeof gcsUri !== "string" ||
@@ -22,15 +31,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const parsedDocType = DocType.safeParse(docTypeHint);
+  const user = await getSessionUser(req);
   const id = uuidv4();
 
-  await createAnalysis({
-    id,
-    fileName,
-    gcsUri,
-    docTypeHint: parsedDocType.success ? parsedDocType.data : null,
-  });
+  await createAnalysis({ id, fileName, gcsUri, ownerUid: user?.uid ?? null });
 
   try {
     const buffer = await downloadFromGcs(gcsUri);
@@ -38,18 +42,45 @@ export async function POST(req: NextRequest) {
 
     if (extracted.text.trim().length < 20) {
       throw new Error(
-        "No extractable text found. Scanned/image-only PDFs need OCR, which isn't wired up yet."
+        "No extractable text found. Scanned or image-only PDFs need OCR, which isn't wired up yet."
       );
     }
 
-    const clauses = await segmentDocument(extracted);
+    // Stage 1 and Stage 0 are independent, so run them together.
+    const [kind, clauses] = await Promise.all([
+      detectDocumentKind(extracted.text),
+      segmentDocument(extracted),
+    ]);
 
+    await setAnalysisKind(id, {
+      docType: kind.docType,
+      docLabel: kind.label,
+      state: kind.state ?? null,
+    });
     await writeClauses(id, clauses);
     await setAnalysisStatus(id, "segmented", {
       progress: { total: clauses.length, done: clauses.length },
     });
 
-    return NextResponse.json({ id, clauses, text: extracted.text });
+    if (user) {
+      await recordActivity({
+        uid: user.uid,
+        kind: "upload",
+        summary: `Uploaded ${fileName}`,
+        detail: `${kind.label} · ${clauses.length} clauses`,
+        href: `/analyze?id=${id}`,
+      });
+    }
+
+    return NextResponse.json({
+      id,
+      clauses,
+      text: extracted.text,
+      kind,
+      // The rule pack covers two document types. Saying so up front is the
+      // difference between limited coverage and a silent wrong answer.
+      covered: kind.docType !== "other",
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`analyze ${id} failed`, err);

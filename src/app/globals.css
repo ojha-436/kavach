@@ -125,10 +125,16 @@
   }
 }
 
-/* Night registry. The paper identity is primary; this is the reading-late
-   variant, not a separate personality. */
+/*
+  Night registry. The paper identity is primary; this is the reading-late
+  variant, not a separate personality.
+
+  Declared twice on purpose: once for people who never touch the toggle and
+  whose OS says dark (guarded so an explicit "light" choice still wins), and
+  once for an explicit choice, which must beat the OS in both directions.
+*/
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --color-paper: #11181c;
     --color-paper-raised: #182126;
@@ -142,7 +148,7 @@
     --color-seal: #d97382;
     --color-seal-wash: #3a1a20;
     --color-caution: #d2924f;
-    --color-caution-wash: #38261492;
+    --color-caution-wash: #382614;
     --color-brass: #c2a45e;
     --color-brass-wash: #2e2717;
     --color-favour: #7cc099;
@@ -151,4 +157,28 @@
     --color-attest: #85b3e0;
     --color-attest-wash: #16283a;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: #11181c;
+  --color-paper-raised: #182126;
+  --color-paper-sunk: #0c1216;
+  --color-rule: #2c3940;
+
+  --color-ink: #e6ebe4;
+  --color-ink-soft: #a3b0b3;
+  --color-ink-faint: #74838a;
+
+  --color-seal: #d97382;
+  --color-seal-wash: #3a1a20;
+  --color-caution: #d2924f;
+  --color-caution-wash: #382614;
+  --color-brass: #c2a45e;
+  --color-brass-wash: #2e2717;
+  --color-favour: #7cc099;
+  --color-favour-wash: #172c22;
+
+  --color-attest: #85b3e0;
+  --color-attest-wash: #16283a;
 }

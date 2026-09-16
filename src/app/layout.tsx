@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Spectral, IBM_Plex_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
 
 const spectral = Spectral({
   subsets: ["latin"],
@@ -31,6 +32,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${spectral.variable} ${plex.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>

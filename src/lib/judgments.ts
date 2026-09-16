@@ -23,10 +23,30 @@ const BUCKET_HOST =
 export const CORPUS_ATTRIBUTION =
   "Supreme Court of India judgments via the AWS Open Data mirror of eCourts (CC-BY-4.0). Reproduced under s.52(1)(q), Copyright Act 1957.";
 
+const HC_BUCKET_HOST =
+  "https://indian-high-court-judgments.s3.ap-south-1.amazonaws.com";
+
 /** `1950_1_15_25` -> the English PDF for that reported case. */
 export function pdfUrlFor(judgmentPath: string): string {
   const year = judgmentPath.split("_")[0];
   return `${BUCKET_HOST}/data/pdf/year=${year}/english/${judgmentPath}_EN.pdf`;
+}
+
+/**
+ * High Court judgments are addressed by their full object key rather than a
+ * short path, because the mirror partitions them by year/court/bench and the
+ * key is the only stable identifier.
+ */
+export function hcPdfUrlFor(objectKey: string): string {
+  return `${HC_BUCKET_HOST}/${objectKey}`;
+}
+
+export async function fetchHcJudgmentPdf(objectKey: string): Promise<Buffer> {
+  const res = await fetch(hcPdfUrlFor(objectKey));
+  if (!res.ok) {
+    throw new Error(`High Court PDF not available for ${objectKey} (${res.status})`);
+  }
+  return Buffer.from(await res.arrayBuffer());
 }
 
 export function metadataUrlFor(judgmentPath: string): string {
@@ -69,6 +89,46 @@ const EDITORIAL_MARKERS = [
   /\bList of Keywords\b/i,
   /\bAppearances? for Parties\b/i,
 ];
+
+/**
+ * Which court delivered this judgment.
+ *
+ * The source bucket is authoritative and text is not: a Supreme Court
+ * judgment discusses, at length, the High Court order under appeal, so
+ * scanning for "High Court" misfiles most SC judgments. Only the High Court
+ * corpus needs text derivation, and only to find out *which* High Court —
+ * the mirror's `court=10_8` partition codes are opaque.
+ */
+export function deriveCourt(fullText: string, source: "sc" | "hc"): string {
+  if (source === "sc") return "Supreme Court of India";
+
+  const head = fullText.slice(0, 6000).replace(/\s+/g, " ");
+  const hc = head.match(
+    /IN THE HIGH COURT (?:OF JUDICATURE )?(?:OF |AT |FOR )?([A-Za-z][A-Za-z ,'&-]{2,60}?)(?:\s+(?:AT|BENCH|CIVIL|CRIMINAL|ORDINARY|APPELLATE|ORIGINAL)\b|\s{2,}|$)/i
+  );
+  if (hc) return `High Court of ${titleCase(hc[1])}`;
+
+  return "High Court (unspecified)";
+}
+
+/** Court headers are set in caps; sentence-case them for display. */
+function titleCase(s: string): string {
+  return s
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (m) => m.toUpperCase())
+    .replace(/\bAnd\b/g, "and");
+}
+
+/** "Civil Appeal No. 11030 of 2024" and friends, when the report states one. */
+export function deriveCaseNumber(fullText: string): string | null {
+  const head = fullText.slice(0, 8000).replace(/\s+/g, " ");
+  const m = head.match(
+    /((?:Civil|Criminal|Special Leave|Writ|Transfer|Arbitration|Company|Tax|Election)[A-Za-z ()]{0,40}?(?:Appeal|Petition|Application|Case|Reference)s?(?:\s*\(\w+\))?\s*(?:No\.?|Nos\.?)\s*[\d/,\s-]{1,30}of\s*\d{4})/i
+  );
+  return m ? m[1].replace(/\s+/g, " ").trim().slice(0, 120) : null;
+}
 
 export type PreparedJudgment = {
   /** The court's own words. This is the only text we store or send to a model. */

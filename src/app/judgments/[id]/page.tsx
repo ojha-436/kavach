@@ -1,7 +1,9 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { AskPanel } from "@/components/AskPanel";
+import { useAuth } from "@/components/AuthProvider";
 
 type Paragraph = { index: number; text: string };
 type Point = { text: string; paragraphs: number[] };
@@ -15,15 +17,24 @@ type Explanation = {
 };
 
 type Payload = {
-  judgment: { id: string; title: string; citation: string | null; year: string };
+  judgment: {
+    id: string;
+    title: string;
+    citation: string | null;
+    year: string;
+    court: string;
+    caseNumber: string | null;
+  };
   paragraphs: Paragraph[];
   explanation?: Explanation;
+  translated?: Explanation | null;
+  translationError?: string | null;
+  language?: string | null;
   droppedClaims?: number;
-  truncated?: boolean;
-  error?: string;
+  languages?: Record<string, string>;
 };
 
-const SECTIONS: Array<{ key: keyof Explanation; title: string; note?: string }> = [
+const SECTIONS: Array<{ key: keyof Explanation; title: string }> = [
   { key: "issue", title: "What the court was asked" },
   { key: "held", title: "What it decided" },
   { key: "reasoning", title: "Why" },
@@ -36,28 +47,55 @@ export default function JudgmentPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { token } = useAuth();
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lang, setLang] = useState("");
+  const [translating, setTranslating] = useState(false);
   const [active, setActive] = useState<number | null>(null);
   const paraRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
+  const load = useCallback(
+    async (language: string) => {
+      const idToken = await token();
+      const qs = language ? `&lang=${language}` : "";
+      const res = await fetch(`/api/judgments/${id}?explain=1${qs}`, {
+        headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Could not load this judgment.");
+      return json as Payload;
+    },
+    [id, token]
+  );
+
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
-        const res = await fetch(`/api/judgments/${id}?explain=1`);
-        const json = await res.json();
-        if (cancelled) return;
-        if (!res.ok) setError(json.error ?? "Could not load this judgment.");
-        else setData(json);
-      } catch {
-        if (!cancelled) setError("Could not load this judgment.");
+        const json = await load("");
+        if (!cancelled) setData(json);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load.");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [load]);
+
+  async function changeLanguage(next: string) {
+    setLang(next);
+    if (!data) return;
+    setTranslating(true);
+    try {
+      setData(await load(next));
+    } catch {
+      // Keep whatever is already on screen rather than blanking the page.
+    } finally {
+      setTranslating(false);
+    }
+  }
 
   function goToParagraph(n: number) {
     setActive(n);
@@ -88,28 +126,67 @@ export default function JudgmentPage({
     );
   }
 
-  const { judgment, paragraphs, explanation, droppedClaims } = data;
+  const { judgment, paragraphs, explanation, translated, translationError, droppedClaims } =
+    data;
+  const shown = translated ?? explanation;
+  const languages = data.languages ?? {};
 
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-5 py-10">
+      <main className="mx-auto max-w-6xl px-5 py-10 pb-20">
         <header className="border-b border-rule pb-6">
           <h1 className="font-display text-3xl font-medium text-ink">{judgment.title}</h1>
           <p className="mt-2 font-sans text-sm text-ink-faint numeral-tabular">
-            Supreme Court of India
+            {judgment.court}
             {judgment.citation ? ` · ${judgment.citation}` : ""} · {judgment.year} ·{" "}
             {paragraphs.length} paragraphs
           </p>
+          {judgment.caseNumber && (
+            <p className="font-sans text-sm text-ink-faint">{judgment.caseNumber}</p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="font-sans text-sm text-ink-soft">
+              Read in:{" "}
+              <select
+                value={lang}
+                onChange={(e) => void changeLanguage(e.target.value)}
+                disabled={translating}
+                className="border border-rule bg-paper-raised px-2 py-1.5 font-sans text-sm text-ink focus:border-attest focus:outline-none"
+              >
+                <option value="">English</option>
+                {Object.entries(languages).map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {translating && (
+              <span className="font-sans text-xs text-ink-faint">Translating…</span>
+            )}
+            {translated && (
+              <span className="font-sans text-xs text-ink-faint">
+                Machine translation of the English explanation. The judgment itself is
+                unchanged and remains the authoritative text.
+              </span>
+            )}
+          </div>
+
+          {translationError && (
+            <p className="mt-3 border border-caution bg-caution-wash px-3 py-2 font-sans text-sm text-caution">
+              {translationError}
+            </p>
+          )}
         </header>
 
         <div className="grid gap-12 py-10 lg:grid-cols-[1fr_1fr] lg:gap-14">
-          {/* Explanation: every claim carries the paragraph it came from. */}
           <div>
-            {explanation ? (
+            {shown ? (
               <>
                 {SECTIONS.map(({ key, title }) => {
-                  const points = explanation[key] as Point[];
+                  const points = shown[key] as Point[];
                   if (!points?.length) return null;
                   return (
                     <section key={key} className="mb-9">
@@ -138,13 +215,13 @@ export default function JudgmentPage({
                   );
                 })}
 
-                {explanation.doesNotDecide.length > 0 && (
+                {shown.doesNotDecide.length > 0 && (
                   <section className="border-t border-rule pt-6">
                     <h2 className="font-sans text-xs font-semibold tracking-wide text-seal">
                       What this judgment does not decide
                     </h2>
                     <ul className="mt-3 space-y-2">
-                      {explanation.doesNotDecide.map((s, i) => (
+                      {shown.doesNotDecide.map((s, i) => (
                         <li key={i} className="prose-document text-ink-soft">
                           {s}
                         </li>
@@ -170,7 +247,6 @@ export default function JudgmentPage({
             )}
           </div>
 
-          {/* The judgment itself, so a reader can verify any claim in place. */}
           <div className="lg:max-h-[75vh] lg:overflow-y-auto lg:border-l lg:border-rule lg:pl-10">
             {paragraphs.map((p) => (
               <div
@@ -179,9 +255,7 @@ export default function JudgmentPage({
                   paraRefs.current[p.index] = el;
                 }}
                 className={`mb-5 border-l-2 pl-4 transition-colors ${
-                  active === p.index
-                    ? "border-attest bg-attest-wash"
-                    : "border-transparent"
+                  active === p.index ? "border-attest bg-attest-wash" : "border-transparent"
                 }`}
               >
                 <p className="font-sans text-xs text-ink-faint numeral-tabular">
@@ -192,6 +266,17 @@ export default function JudgmentPage({
             ))}
           </div>
         </div>
+
+        <AskPanel
+          judgmentId={judgment.id}
+          title="Ask about this judgment"
+          blurb="Answers come from this judgment's own text, cited by paragraph. Kavach will not tell you how it applies to your situation — that needs a lawyer who knows your facts."
+          suggestions={[
+            "Explain this judgment like I have no legal background.",
+            "Who won, and what were they actually ordered to do?",
+            "What did the court expressly leave open?",
+          ]}
+        />
       </main>
     </>
   );

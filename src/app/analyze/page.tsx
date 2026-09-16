@@ -2,10 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { AskPanel } from "@/components/AskPanel";
 import { useAuth } from "@/components/AuthProvider";
-import { Clause, DocType } from "@/lib/schema";
+import { Clause, DocumentKind } from "@/lib/schema";
 
-type Status = "idle" | "uploading" | "segmenting" | "ready" | "error";
+type Status = "idle" | "uploading" | "working" | "ready" | "error";
 
 const CONTENT_TYPES: Record<string, string> = {
   ".pdf": "application/pdf",
@@ -23,12 +24,12 @@ export default function AnalyzePage() {
   const [status, setStatus] = useState<Status>("idle");
   const [statusDetail, setStatusDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [docType, setDocType] = useState<DocType>("rental");
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [clauses, setClauses] = useState<Clause[]>([]);
+  const [kind, setKind] = useState<DocumentKind | null>(null);
+  const [covered, setCovered] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const clauseRefs = useRef<Record<string, HTMLSpanElement | null>>({});
 
   async function handleFile(file: File) {
@@ -59,17 +60,16 @@ export default function AnalyzePage() {
       });
       if (!putRes.ok) throw new Error("Upload to storage failed");
 
-      setStatus("segmenting");
-      setStatusDetail("Splitting the document into clauses…");
+      setStatus("working");
+      setStatusDetail("Identifying the document and splitting it into clauses…");
+      const idToken = await token();
       const res = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gcsUri,
-          fileName: file.name,
-          contentType,
-          docTypeHint: docType,
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({ gcsUri, fileName: file.name, contentType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Analysis failed");
@@ -77,26 +77,13 @@ export default function AnalyzePage() {
       setAnalysisId(data.id);
       setText(data.text);
       setClauses(data.clauses);
-      setSaved(false);
+      setKind(data.kind);
+      setCovered(data.covered);
       setStatus("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setStatus("error");
     }
-  }
-
-  async function saveToProfile() {
-    const idToken = await token();
-    if (!idToken || !analysisId) return;
-    const res = await fetch("/api/me", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({ analysisId }),
-    });
-    if (res.ok) setSaved(true);
   }
 
   function select(id: string) {
@@ -134,41 +121,44 @@ export default function AnalyzePage() {
     return (
       <>
         <SiteHeader />
-        <main className="mx-auto max-w-6xl px-5">
-          <div className="flex flex-wrap items-center gap-4 border-b border-rule py-4">
+        <main className="mx-auto max-w-6xl px-5 pb-20">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-rule py-4">
+            <p className="font-display text-lg text-ink">{kind?.label}</p>
             <p className="font-sans text-sm text-ink-soft numeral-tabular">
-              {clauses.length} clauses found
+              {clauses.length} clauses
+              {kind?.state ? ` · ${kind.state}` : ""}
             </p>
-            <p className="font-sans text-xs text-ink-faint">
-              No verdicts yet — clause segmentation only.
-            </p>
-            <div className="ml-auto flex items-center gap-4 font-sans text-sm">
-              {user ? (
-                <button
-                  onClick={saveToProfile}
-                  disabled={saved}
-                  className="text-attest underline-offset-4 hover:underline disabled:text-ink-faint disabled:no-underline"
-                >
-                  {saved ? "Saved to your profile" : "Save to my profile"}
-                </button>
-              ) : (
-                <span className="text-ink-faint">
-                  Signed out — this is deleted in 24 hours
-                </span>
-              )}
-              <button
-                onClick={() => {
-                  setStatus("idle");
-                  setClauses([]);
-                  setText("");
-                  setSelectedId(null);
-                }}
-                className="text-ink-soft underline-offset-4 hover:text-ink hover:underline"
-              >
-                New document
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                setStatus("idle");
+                setClauses([]);
+                setText("");
+                setSelectedId(null);
+                setKind(null);
+              }}
+              className="ml-auto font-sans text-sm text-ink-soft underline-offset-4 hover:text-ink hover:underline"
+            >
+              New document
+            </button>
           </div>
+
+          {!covered && (
+            <p className="mt-4 border border-caution bg-caution-wash px-4 py-3 font-sans text-sm text-caution">
+              Kavach&apos;s statutory rule pack covers Indian residential rental
+              agreements and employment offer letters. This looks like a{" "}
+              {kind?.label.toLowerCase()}, so there are no curated rules to check it
+              against. You can still read it clause by clause and ask questions about
+              what it says — but the assistant will not tell you what the law provides
+              about this document type, because we haven&apos;t verified those rules.
+            </p>
+          )}
+
+          {!user && (
+            <p className="mt-4 font-sans text-xs text-ink-faint">
+              You&apos;re signed out, so this document is deleted within 24 hours and
+              won&apos;t appear in your history.
+            </p>
+          )}
 
           <div className="grid gap-10 py-8 lg:grid-cols-[1fr_320px] lg:gap-12">
             <div className="prose-document whitespace-pre-wrap text-ink">
@@ -216,43 +206,40 @@ export default function AnalyzePage() {
               ))}
             </aside>
           </div>
+
+          <AskPanel
+            analysisId={analysisId ?? undefined}
+            title="Ask about this document"
+            blurb="Questions are answered from this document and, where the rule pack covers it, the statute behind it. You'll see which sources each answer used."
+            suggestions={[
+              "Summarise this document in plain English.",
+              "Which clauses are one-sided against me?",
+              "What should I ask a lawyer before signing this?",
+            ]}
+          />
         </main>
       </>
     );
   }
 
-  const working = status === "uploading" || status === "segmenting";
+  const working = status === "uploading" || status === "working";
 
   return (
     <>
       <SiteHeader />
       <main className="mx-auto max-w-xl px-5 py-16">
-        <h1 className="font-display text-3xl font-medium text-ink">
-          Your document
-        </h1>
+        <h1 className="font-display text-3xl font-medium text-ink">Your document</h1>
         <p className="prose-document mt-4 text-ink-soft">
-          A residential rental agreement or an employment offer letter, as PDF or DOCX.
-          It is processed in asia-south1 and, if you are not signed in, deleted within 24
-          hours.
+          Upload any Indian legal document as PDF or DOCX — a rental agreement, an offer
+          letter, a loan agreement, a notice. Kavach works out what it is, splits it into
+          clauses, and lets you ask questions about it.
+        </p>
+        <p className="prose-document mt-3 text-ink-soft">
+          Processed in asia-south1. If you&apos;re not signed in, it&apos;s deleted within
+          24 hours.
         </p>
 
-        <div className="mt-8 flex gap-2">
-          {(["rental", "employment"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setDocType(t)}
-              className={`border px-4 py-2 font-sans text-sm capitalize transition-colors ${
-                docType === t
-                  ? "border-ink bg-ink text-paper"
-                  : "border-rule text-ink-soft hover:border-ink hover:text-ink"
-              }`}
-            >
-              {t === "rental" ? "Rental agreement" : "Offer letter"}
-            </button>
-          ))}
-        </div>
-
-        <label className="mt-6 flex cursor-pointer items-center justify-center border border-dashed border-rule bg-paper-raised px-6 py-14 text-center transition-colors hover:border-attest">
+        <label className="mt-8 flex cursor-pointer items-center justify-center border border-dashed border-rule bg-paper-raised px-6 py-16 text-center transition-colors hover:border-attest">
           <input
             type="file"
             accept=".pdf,.docx"

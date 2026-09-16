@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthProvider";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
   { href: "/analyze", label: "Your document" },
   { href: "/judgments", label: "Judgments" },
-  { href: "/ask", label: "Ask" },
+  { href: "/history", label: "History" },
 ];
 
 export function SiteHeader() {
@@ -54,6 +55,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3 text-sm">
+          <ThemeToggle />
           {loading ? null : user ? (
             <>
               {user.photoURL ? (

@@ -317,6 +317,27 @@ the cut list in §2 and the risk row above: **if Day 5 arrives and Surface A is 
 B and C get cut, not compressed.** A finished contract analyser beats three half-built surfaces,
 and a judge can tell the difference in about fifteen seconds.
 
+### Day 2 addendum — UX changes that moved a scope line again
+
+- **The document-type picker is gone.** Users upload anything; Stage 1 detects what it is. This is
+  what Architecture §4.2 always specified, and asking a worried person to categorise their own
+  contract before we'd look at it was a bad trade. **The rule pack did not get any wider.** A
+  document detected as `other` is segmented and answerable, but the agent is told, in the tool
+  result itself, that it may describe what the document says and may not state what the law
+  provides about it. Coverage is surfaced to the user in the UI rather than silently degraded.
+- **The standalone Ask page is gone.** Asking now happens beside the thing being asked about — the
+  document, or the judgment — with the open item's id passed to the agent as context. One fewer
+  page, and the question is never detached from its subject.
+- **Judgments gained court/year/case-number filters and regional-language translation.** Translation
+  runs over the *already-validated* English explanation, never as a second pass against the source,
+  and paragraph citations are reattached from the validated original rather than round-tripped
+  through the model — so a translation error cannot move a citation. A length mismatch between
+  input and output strings fails the translation rather than risk pairing text with the wrong
+  paragraph.
+- **History is signed-in only.** Uploads, questions, searches and judgment views are recorded for
+  authenticated users, with a delete-everything control. Anonymous sessions are not logged at all:
+  keeping a trail for someone who never identified themselves collects more than the product needs.
+
 ### Why "agentic" here means tools, not personality
 
 The agent has no free-form legal answer path. It holds five tools — `search_judgments`,

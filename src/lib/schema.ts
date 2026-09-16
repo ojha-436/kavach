@@ -46,6 +46,19 @@ export const UserSide = z.enum([
 ]);
 export type UserSide = z.infer<typeof UserSide>;
 
+/** What Stage 1 detects. Wider than DocType, because most documents people
+ *  upload are neither a rental agreement nor an offer letter. */
+export const DetectedDocType = z.enum(["rental", "employment", "other"]);
+export type DetectedDocType = z.infer<typeof DetectedDocType>;
+
+export const DocumentKind = z.object({
+  docType: DetectedDocType,
+  label: z.string(),
+  state: z.string().nullable().optional().default(null),
+  userSide: UserSide,
+});
+export type DocumentKind = z.infer<typeof DocumentKind>;
+
 export const DocumentFrame = z.object({
   docType: DocType,
   state: z.string().nullable(),
@@ -118,6 +131,10 @@ export const Judgment = z.object({
   /** Neutral citation as published, e.g. "1950INSC1". */
   citation: z.string().nullable(),
   title: z.string(),
+  /** e.g. "Supreme Court of India", "High Court of Judicature at Patna". */
+  court: z.string(),
+  /** e.g. "Civil Appeal No. 11030 of 2024", when stated. */
+  caseNumber: z.string().nullable(),
   sourceUrl: z.string(),
   paragraphCount: z.number().int(),
   ingestedAt: z.string(),
@@ -158,7 +175,10 @@ export const Analysis = z.object({
   status: AnalysisStatus,
   fileName: z.string(),
   gcsUri: z.string(),
-  docTypeHint: DocType.nullable(),
+  /** Detected in Stage 1, not chosen by the user. */
+  docType: DetectedDocType,
+  docLabel: z.string(),
+  state: z.string().nullable(),
   progress: z.object({ total: z.number().int(), done: z.number().int() }),
   error: z.string().nullable(),
   createdAt: z.string(),
