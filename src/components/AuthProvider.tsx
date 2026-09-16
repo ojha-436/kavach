@@ -1,7 +1,13 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { watchAuth, signInWithGoogle, signOut, type User } from "@/lib/firebase-client";
+import {
+  watchAuth,
+  signInWithGoogle,
+  signOut,
+  consumeRedirectResult,
+  type User,
+} from "@/lib/firebase-client";
 
 type AuthState = {
   user: User | null;
@@ -61,6 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Completes any sign-in that took the redirect path instead of a popup.
+    void consumeRedirectResult();
     return watchAuth((u) => {
       setUser(u);
       setLoading(false);

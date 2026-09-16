@@ -5,6 +5,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as fbSignOut,
   onAuthStateChanged,
   type User,
@@ -18,7 +20,14 @@ import {
  */
 const firebaseConfig = {
   apiKey: "AIzaSyAGR3gKivNJlDIWmq-DPDVIQEd5SSeR-3c",
-  authDomain: "promptwar-501405.firebaseapp.com",
+  // Point authDomain at whatever origin is actually serving the app, so the
+  // sign-in handler is same-origin. next.config.ts rewrites /__/auth/* to
+  // Firebase's real handler. Falls back to the Firebase-hosted domain for
+  // any non-browser context.
+  authDomain:
+    typeof window !== "undefined"
+      ? window.location.hostname
+      : "promptwar-501405.firebaseapp.com",
   projectId: "promptwar-501405",
   storageBucket: "promptwar-501405.firebasestorage.app",
   messagingSenderId: "823065407403",
@@ -33,11 +42,45 @@ export function auth() {
   return getAuth(app());
 }
 
-export async function signInWithGoogle(): Promise<User> {
+/** Errors where a popup can't work but a full-page redirect still can. */
+const REDIRECT_FALLBACK_CODES = new Set([
+  "auth/popup-blocked",
+  "auth/operation-not-supported-in-this-environment",
+  "auth/web-storage-unsupported",
+]);
+
+export async function signInWithGoogle(): Promise<User | null> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
-  const result = await signInWithPopup(auth(), provider);
-  return result.user;
+
+  try {
+    const result = await signInWithPopup(auth(), provider);
+    return result.user;
+  } catch (err) {
+    const code =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code: unknown }).code)
+        : "";
+
+    // A blocked popup is a browser policy decision, not a dead end: send the
+    // whole page to Google instead. Resolves as null because the result
+    // arrives after navigation, via consumeRedirectResult on next load.
+    if (REDIRECT_FALLBACK_CODES.has(code)) {
+      await signInWithRedirect(auth(), provider);
+      return null;
+    }
+    throw err;
+  }
+}
+
+/** Picks up a sign-in that completed via the redirect path. */
+export async function consumeRedirectResult(): Promise<User | null> {
+  try {
+    const result = await getRedirectResult(auth());
+    return result?.user ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function signOut(): Promise<void> {
