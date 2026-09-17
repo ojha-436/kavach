@@ -344,12 +344,39 @@ these survived to production.
   per-judgment search haystack is capped at 1.5 KB — it was 8 KB, which turned
   every query into megabytes of reads.
 - **Facets are precomputed** at ingest into one document, rather than scanned
-  out of the whole collection on every visit to the search page.
+  out of the whole collection on every visit to the search page, and carry a
+  cache header — they change only when the corpus is ingested.
+- Judgment search runs its Firestore query and its bearer-token verification
+  concurrently; neither needs the other, and in series every search waited on
+  a token check to produce results that did not depend on it.
+- Corpus ingest processes four PDFs at a time. Serial left the container idle
+  through the network waits; unbounded would have made peak memory scale with
+  batch size, and `extractPdfText` holds a parsed document against 1 GiB.
+- **The Firebase SDK is not in the first load of any page.** It is ~130 kB,
+  nothing can be painted with it, and `AuthProvider` sits in the root layout —
+  so every page paid for it up front. Dynamically imported from the mount
+  effect instead: first-load JS fell ~35 kB on every route (`/compare`
+  152 → 117 kB, `/judgments/[id]` 154 → 118 kB).
 - Judgment reads carry `Cache-Control` — the text is immutable once ingested.
 - Paragraph writes go in a single batch rather than a round trip per chunk.
 - `min-instances=1` on Cloud Run, so an evaluator never meets a cold start.
-- Adjudication runs one call per clause in parallel via `Promise.all`, scoped
-  to ~2k tokens each rather than one 40-page prompt.
+- **Every deterministic model call is cached** by its whole request — system
+  instruction, prompt, response schema and model id hashed together. Framing,
+  clause typing, adjudication and synthesis are pure functions of their prompt,
+  so re-analysing a document is a Firestore read rather than a fan-out of model
+  calls. Deliberately *not* keyed on clause text alone: boilerplate shared
+  between two contracts would hit the cache, but the prompt also carries the
+  governing state, which side the reader is on and the joined rule cards, and
+  each of those can change the verdict. The agent is excluded — repeating
+  yourself is the point of a conversation.
+- Adjudication runs one call per clause scoped to ~2k tokens each, rather than
+  one 40-page prompt, **six in flight at a time**. It was an unbounded
+  `Promise.all`, which on a forty-clause contract opened forty simultaneous
+  Vertex AI requests against a project-wide quota shared with every other
+  surface — so the burst either queued anyway or came back 429, and a
+  rate-limit error is indistinguishable downstream from a clause the model
+  could not judge. Both land in `unanalysed`, which reads to the user exactly
+  like a clause with nothing wrong in it.
 - Stage 3 and Stage 5 are deterministic — no model call at all.
 - Clause typing is batched 10 per request.
 - `AuthProvider` context is memoised; without it the judgment explanation

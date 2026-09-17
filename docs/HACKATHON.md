@@ -1,15 +1,14 @@
 # Hackathon Context — PromptWar Virtual Edition
 
 > Single source of truth for this project. Claude: treat everything here as hard constraints.
->
-> ⚠️ **INCOMPLETE — fill the TODO sections on Day 1.** The required stack and judging rubric are
-> unknown, and both can invalidate decisions already made in `docs/ARCHITECTURE.md`.
 
 ## Event
 - **Hackathon:** PromptWar — Virtual Edition
 - **Track / theme:** GenAI for legal information and basic legal assistance
-- **Submission deadline:** TODO — date and timezone
-- **Deliverables:** TODO — deployed URL? repo? pitch video? deck?
+- **Submission deadline:** not supplied to this repo. Left unstated rather than guessed —
+  a wrong date here is worse than an absent one.
+- **Deliverables:** deployed URL and public repo are live (see Live links). Whether a pitch
+  video or deck is also required has not been confirmed.
 - **Format:** Solo, 7 days
 
 ## Problem statement (verbatim from organiser)
@@ -39,19 +38,32 @@
 
 ## Required / recommended tech stack (from organiser)
 
-**TODO — blocks architecture sign-off.** If the organiser mandates a stack, it overrides
-`docs/ARCHITECTURE.md` entirely.
+No stack was mandated. The choice below is ours and the reasoning is in `docs/ARCHITECTURE.md`.
 
-Current working assumption (chosen by us, not mandated):
-Google Cloud — Cloud Run, Vertex AI, Firestore, Cloud Storage, Document AI — region `asia-south1`.
+Google Cloud — Cloud Run, Vertex AI (`gemini-2.5-flash`), Firestore, Cloud Storage,
+Secret Manager, Firebase Auth — region `asia-south1` throughout.
+
+Document AI appeared in an earlier draft of this list and is **not** used: scanned, image-only
+PDFs are refused with a message saying so rather than silently analysed as empty. Listed under
+known limits in the README.
 
 ## Judging rubric
 
-**TODO — paste the real rubric.** Weights drive where the last two days go.
+Six criteria, graded in three impact tiers. The tier is what decides where effort goes: a
+point of Code Quality is worth more to the final standing than a point of Accessibility, even
+though both are graded out of the same total.
 
-| Criterion | Weight | Notes on how to score max |
+| Criterion | Impact | Where this repo answers it |
 |---|---|---|
-| TODO | | |
+| **Code Quality** — structure, readability, maintainability | **High** | Zero `any` and zero eslint-disables in `src/`; every non-obvious decision carries its reasoning in a comment; deterministic logic extracted from routes into testable modules (`clauseAnalysisPatch`, `ingestTokenMatches`, `mapWithConcurrency`, `modelCacheKey`) |
+| **Problem Statement Alignment** | **High** | README §"Against the problem statement" maps all seven of the organiser's use cases to where each is implemented, plus the information-not-advice constraint |
+| **Security** — safe and responsible implementation | Medium | `SECURITY.md`; `npm audit` clean at every severity; ownership checks returning 404 not 403; rate limiting keyed on the unforgeable forwarded hop; constant-time token comparison; Firestore closed to clients and verified so |
+| **Efficiency** — optimal use of resources | Medium | README §Efficiency; model responses cached by full request; bounded concurrency rather than unbounded fan-out; the Firebase SDK kept out of first-load JS; cache headers on immutable responses |
+| **Testing** — validation of functionality | Low | 109 unit tests + 20 browser tests; every regression test names the bug it pins |
+| **Accessibility** — inclusive and usable design | Low | axe at WCAG 2.1 AA across five pages in both themes, in CI, against the production build |
+
+Low impact is not optional — a perfect score still needs them. It means they cannot rescue a
+weak showing on the two High rows.
 
 ## Our solution (one paragraph)
 
@@ -66,9 +78,12 @@ to a lawyer.
 
 ## Live links
 - **Deployed app:** https://kavach-823065407403.asia-south1.run.app
-  - `/analyze` contract clause segmentation · `/judgments` judgment explainer · `/ask` the agent
+  - `/analyze` upload and clause-level verdicts · `/compare` two documents diffed ·
+    `/judgments` judgment search and explainer · `/history` your past activity.
+    The agent has no page of its own: Ask sits beside the document on `/analyze` and beside
+    the judgment on `/judgments/{id}`, because a question about a document belongs next to it.
 - **Repo:** https://github.com/ojha-436/kavach (public)
-- **Demo video:** TODO
+- **Demo video:** not recorded yet — the one deliverable still outstanding.
 
 ## Scope decisions log
 
@@ -114,3 +129,17 @@ to a lawyer.
   basis — falls short of the "defend it to a lawyer" bar. **The remaining 41 still need the human
   verification-against-the-bare-act pass `PLAN.md` Day 1 calls for** before being trusted for the
   demo; treat them as a strong first draft, not a checked rule pack yet.
+- **2026-09-17** — **Upload is no longer gated on document type.** Any legal document can be
+  uploaded; the earlier flow made the reader pick "rental agreement" or "offer letter" first.
+  The scope decision above still holds for *rule coverage* — the curated pack is still those two
+  types only — but the two questions were being conflated. A document outside the pack now gets
+  extraction, clause segmentation and grounded Q&A, and is told plainly that no curated
+  statutory rules cover it rather than being refused at the door or, worse, shown an empty
+  verdict list that reads like "nothing is wrong with this contract".
+- **2026-09-17** — **Model responses cached by the full request** (`src/lib/model-cache.ts`).
+  Keyed on system instruction, prompt, response schema and model id together, not on the clause
+  text alone. Keying on clause text would let boilerplate shared between two contracts hit the
+  cache, which sounds like the whole point — but the adjudication prompt also carries the
+  governing state, which side the reader is on and the joined rule cards, and each of those can
+  change the verdict. The cheap key would serve a confident answer computed for a different
+  question.

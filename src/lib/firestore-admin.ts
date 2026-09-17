@@ -474,3 +474,53 @@ export async function judgmentFacets(): Promise<{
   const d = (rebuilt.data() ?? {}) as { courts?: string[]; years?: string[] };
   return { courts: d.courts ?? [], years: d.years ?? [] };
 }
+
+/* ---------- Model response cache ---------- */
+
+/**
+ * Responses from the deterministic pipeline stages, keyed by the whole
+ * request (see `modelCacheKey`). Separate from the judgment explanation
+ * cache above, which is keyed by document rather than by prompt.
+ *
+ * Entries carry `expiresAt` so a Firestore TTL policy can reclaim them; the
+ * cache is an optimisation, and nothing breaks if an entry disappears.
+ */
+export type CachedModelResponse = {
+  text: string;
+  createdAt: string;
+  /**
+   * A real Date, not an ISO string, unlike `createdAt` beside it. Firestore
+   * TTL policies only act on timestamp fields — pointed at a string they
+   * match nothing and delete nothing, silently, which is how a cache quietly
+   * becomes a collection that only grows.
+   */
+  expiresAt: Date;
+};
+
+/** Days a cached response stays useful before the rule pack has likely moved. */
+const MODEL_CACHE_TTL_DAYS = 30;
+
+export async function getCachedModelResponse(
+  key: string
+): Promise<string | null> {
+  const snap = await client().collection("modelCache").doc(key).get();
+  if (!snap.exists) return null;
+  return (snap.data() as CachedModelResponse).text ?? null;
+}
+
+export async function putCachedModelResponse(
+  key: string,
+  text: string
+): Promise<void> {
+  const now = new Date();
+  await client()
+    .collection("modelCache")
+    .doc(key)
+    .set({
+      text,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(
+        now.getTime() + MODEL_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
+      ),
+    });
+}

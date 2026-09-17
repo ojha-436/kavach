@@ -1,3 +1,8 @@
+import { modelCacheKey } from "./model-cache";
+import {
+  getCachedModelResponse,
+  putCachedModelResponse,
+} from "./firestore-admin";
 import {
   VertexAI,
   type Content,
@@ -61,19 +66,63 @@ async function generate({
   return text;
 }
 
+/**
+ * generate(), with the response cached against the full request.
+ *
+ * Every stage that goes through here is a deterministic structured task, so
+ * asking the model the identical question twice spends seconds and tokens to
+ * get back the same JSON. Re-analysing a document — the repeat demo, the
+ * shared link, the refresh — becomes a Firestore read instead of a fan-out of
+ * model calls.
+ *
+ * The agent does not come through here. converse() is a conversation, where
+ * repeating yourself is the point, and caching it would make the assistant
+ * answer the second question with the first answer.
+ *
+ * Cache failures are not request failures. If Firestore is unreachable, or
+ * this is running somewhere without credentials at all, the model call still
+ * happens — a cache that can take the pipeline down with it is worse than no
+ * cache.
+ */
+async function generateCached(opts: GenerateOptions): Promise<string> {
+  const key = modelCacheKey({
+    model: MODEL,
+    systemInstruction: opts.systemInstruction,
+    prompt: opts.prompt,
+    responseSchema: opts.responseSchema,
+  });
+
+  try {
+    const hit = await getCachedModelResponse(key);
+    if (hit) return hit;
+  } catch {
+    // Fall through to the model.
+  }
+
+  const text = await generate(opts);
+
+  try {
+    await putCachedModelResponse(key, text);
+  } catch {
+    // The answer is already in hand; failing to store it changes nothing.
+  }
+
+  return text;
+}
+
 /** Stage 1 (document frame) and Stage 2 (clause typing) — classification tasks. */
 export async function classify(opts: GenerateOptions): Promise<string> {
-  return generate(opts);
+  return generateCached(opts);
 }
 
 /** Stage 4 — per-clause adjudication against joined rule cards. */
 export async function adjudicate(opts: GenerateOptions): Promise<string> {
-  return generate(opts);
+  return generateCached(opts);
 }
 
 /** Stage 6 — synthesis over the structured verdict set. */
 export async function synthesize(opts: GenerateOptions): Promise<string> {
-  return generate(opts);
+  return generateCached(opts);
 }
 
 /* ---------- Tool-calling (the agent, Surface C) ---------- */

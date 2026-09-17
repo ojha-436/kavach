@@ -1,4 +1,5 @@
 import { adjudicate as callModel } from "./llm";
+import { mapWithConcurrency } from "./concurrency";
 import { rulesFor } from "./rules";
 import { OTHER } from "./classify-clauses";
 import {
@@ -245,15 +246,29 @@ export async function adjudicateClauses(
     .map((c) => c.heading)
     .filter((h): h is string => !!h);
 
-  const results = await Promise.all(
-    judgeable.map(({ clause, rules }) =>
+  /**
+   * Six model calls in flight at a time, not one per clause.
+   *
+   * Promise.all over every judgeable clause meant a forty-clause contract
+   * opened forty simultaneous Vertex AI requests. That is not faster in any
+   * way that matters — the quota is per-project and shared with the other
+   * surfaces, so the burst either queues anyway or comes back 429, and a
+   * rate-limit error is indistinguishable to the caller from a clause the
+   * model could not judge. Both end up in `unanalysed`, which is the one
+   * failure this pipeline should not produce quietly, because a clause that
+   * silently went unjudged reads to the user exactly like a clause with
+   * nothing wrong in it.
+   */
+  const results = await mapWithConcurrency(
+    judgeable,
+    6,
+    ({ clause, rules }) =>
       judgeOne(
         clause,
         rules,
         kind,
         headings.filter((h) => h !== clause.heading).slice(0, 12)
       )
-    )
   );
 
   const findings: ClauseFinding[] = [];

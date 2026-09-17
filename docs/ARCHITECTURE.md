@@ -30,35 +30,55 @@ Four decisions shape everything below. If you change one, re-read this document.
      Browser ────────────────▶│  Cloud Run  (asia-south1)    │
        │                      │  Next.js 15 standalone       │
        │                      │  ── App Router UI            │
-       │  signed URL PUT      │  ── /api/analyze  (SSE)      │
-       │                      │  ── /api/ask                 │
-       ▼                      │  ── pipeline stages 0-7      │
-  ┌─────────────┐             └───┬─────────┬─────────┬──────┘
-  │Cloud Storage│◀────────────────┘         │         │
-  │ uploads/    │  raw doc                  │         │
-  │ 24h TTL     │                           │         │
-  └──────┬──────┘                           │         │
-         │                                  │         │
-         │ scanned PDFs only                │         │
-         ▼                                  ▼         ▼
-  ┌─────────────┐                   ┌────────────┐ ┌──────────────┐
-  │ Document AI │                   │ Vertex AI  │ │  Firestore   │
-  │ OCR proc.   │                   │  stages    │ │  analyses/   │
-  └─────────────┘                   │  1,2,4,5,6 │ │  progress    │
-                                    └────────────┘ └──────┬───────┘
-  ┌─────────────┐   ┌──────────────┐                      │
-  │Secret Mgr   │   │ Cloud Build  │   live progress ◀────┘
-  │ config      │   │ GitHub → Run │   (client onSnapshot)
-  └─────────────┘   └──────────────┘
+       │  signed URL PUT      │  ── /api/upload-url          │
+       │                      │  ── /api/analyze             │
+       ▼                      │  ── /api/analyses/{id}[/adj] │
+  ┌─────────────┐             │  ── /api/compare             │
+  │Cloud Storage│◀────────────│  ── /api/agent   (tools)     │
+  │ uploads/    │  raw doc    │  ── /api/judgments[/{id}]    │
+  │ 24h TTL     │             │  ── /api/history, /api/me    │
+  └─────────────┘             └───┬──────────────┬───────────┘
+                                  │              │
+                                  ▼              ▼
+                          ┌────────────┐  ┌──────────────────┐
+                          │ Vertex AI  │  │    Firestore     │
+                          │ Flash 2.5  │  │  analyses/       │
+                          │ stages     │  │  users/activity  │
+                          │ 1,2,4,6    │  │  judgments/      │
+                          └────────────┘  │  modelCache/     │
+                                          └──────────────────┘
+  ┌─────────────┐   ┌──────────────┐   ┌──────────────────┐
+  │Secret Mgr   │   │ Cloud Build  │   │  Firebase Auth   │
+  │INGEST_TOKEN │   │ npm run      │   │  Google sign-in  │
+  │             │   │ deploy       │   │  (ID tokens)     │
+  └─────────────┘   └──────────────┘   └──────────────────┘
 ```
 
 **One Cloud Run service.** Solo developers die on microservice infrastructure. The pipeline is
-in-process; parallelism comes from `Promise.all` over Vertex AI calls, not from more services.
+in-process; parallelism comes from bounded fan-out over Vertex AI calls — `mapWithConcurrency`,
+not an unbounded `Promise.all`, because the model quota is per-project and shared across every
+surface, so a forty-way burst either queues anyway or returns 429.
 
-**Live progress via Firestore, not polling.** The server writes stage progress to
-`analyses/{id}`; the client subscribes with `onSnapshot`. Clauses light up one by one as they are
-adjudicated. This is three lines of code and it is the single best "this is really thinking"
-demo moment available for free.
+### What this section used to claim, and why it no longer does
+
+An earlier revision of this document described a system that was designed but never built, and
+three of its claims survived long enough to be wrong rather than aspirational. Recording the
+correction here because a reader checking the diagram against the code is exactly the reader this
+document exists for.
+
+- **Live progress via a client `onSnapshot` listener.** Not built. It also could not be built as
+  written: `firestore.rules` denies all client access, deliberately, because the Firebase web API
+  key is public and anything the browser can read, any visitor can read. Live clause-by-clause
+  progress would need either a narrowly scoped rule for a single analysis document or a
+  server-sent stream. The client uses plain `fetch` and renders when the analysis returns.
+- **`/api/analyze (SSE)` and `/api/ask`.** Neither exists. Analysis is a normal request —
+  Cloud Run allows 300s and the pipeline targets 15–25s — and the agent is `/api/agent`.
+- **Document AI OCR for scanned PDFs.** Not wired up. Text extraction is `pdfjs-dist` for PDFs
+  and `mammoth` for DOCX; an image-only PDF is refused with a message saying so rather than
+  silently producing an empty analysis. This is a real coverage gap, listed in the README's
+  known limits.
+- **Cloud Build GitHub trigger.** There is none. Deploys are deliberate: `npm run deploy` builds
+  through `cloudbuild.yaml` and promotes the image.
 
 ---
 
@@ -68,14 +88,20 @@ demo moment available for free.
 1. Client requests a signed upload URL           POST /api/upload-url
 2. Client PUTs the file directly to GCS          (Cloud Run never touches bytes on upload)
 3. Client starts analysis                        POST /api/analyze { gcsUri }
-4. Server creates analyses/{id} in Firestore, returns id immediately
-5. Server runs stages 0-6, writing progress after each stage
-6. Client renders live from the Firestore snapshot listener
-7. Q&A afterwards is stateless against the stored clause set   POST /api/ask
+4. Server runs Stage 0 (extract + segment) and Stage 1 (document frame),
+   which are independent and run together, then writes analyses/{id}
+5. Client requests adjudication                  POST /api/analyses/{id}/adjudicate
+6. Server runs Stage 2 (clause typing), Stage 4 (adjudication against the
+   deterministically joined rules), Stage 5 (missing protections) and
+   Stage 6 (summary, checklist, negotiation email)
+7. Q&A afterwards is stateless against the stored clause set   POST /api/agent
 ```
 
-Cloud Run's default request timeout is 300s and the analysis targets 15–25s, so a plain request
-works. Progress-via-Firestore is a UX choice, not a timeout workaround.
+Split across two requests rather than one so the reader sees segmented clauses while the
+expensive per-clause adjudication is still running. Ownership is checked on every read of
+`analyses/{id}`: anonymous analyses are protected by an unguessable id and expire in 24h, but
+once an analysis belongs to a signed-in user it stops expiring and needs a real check, which
+returns 404 rather than 403 because confirming an id exists is itself a leak.
 
 ---
 
