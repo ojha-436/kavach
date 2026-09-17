@@ -56,6 +56,7 @@ export default function AnalyzePage() {
     riskScore: number;
     counts: Record<string, number>;
     unanalysed: string[];
+    unchecked?: string[];
     synthesis?: Synthesis;
   } | null>(null);
 
@@ -319,6 +320,22 @@ export default function AnalyzePage() {
               New document
             </button>
           </div>
+
+          {/* A partially checked document must not be allowed to look like a
+              clean one. Zero findings because nothing was wrong and zero
+              findings because the checks never ran render identically
+              otherwise, and the second is the one that gets someone hurt. */}
+          {(report?.unchecked?.length ?? 0) > 0 && (
+            <p
+              role="alert"
+              className="mt-4 border border-caution bg-caution-wash px-4 py-3 font-sans text-sm text-caution"
+            >
+              {report?.unchecked?.length} of {clauses.length} clauses could not be
+              checked — the service was busy, so those clauses have no verdict
+              either way. Do not read the absence of a flag on them as approval.
+              Running the check again usually clears it.
+            </p>
+          )}
 
           {judgeError && (
             <p

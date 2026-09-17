@@ -162,7 +162,13 @@ export type DocumentReport = {
   riskScore: number;
   counts: Record<string, number>;
   missingProtections: ExpectedProtection[];
+  /** Typed successfully; no curated rule covers them. */
   unanalysed: string[];
+  /**
+   * Typing never completed for these, so nothing is known about them.
+   * Optional because reports written before this existed do not carry it.
+   */
+  unchecked?: string[];
   droppedCitations: number;
   synthesis?: Synthesis;
   generatedAt: string;

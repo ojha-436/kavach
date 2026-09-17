@@ -71,15 +71,27 @@ const RESPONSE_SCHEMA = {
   required: ["labels"],
 };
 
+export type TypedClauses = {
+  clauses: Clause[];
+  /**
+   * Ids whose typing did not complete. Empty on a healthy run. Non-empty
+   * means the document is partially unchecked, which the caller has to say
+   * out loud rather than present as a clean result.
+   */
+  unchecked: string[];
+};
+
 export async function typeClauses(
   clauses: Clause[],
   docType: DocType
-): Promise<Clause[]> {
+): Promise<TypedClauses> {
   const taxonomy = expectedClauseTypes(docType);
   const allowed = new Set([...taxonomy, OTHER]);
   const byId = new Map(clauses.map((c) => [c.id, c]));
   const labels = new Map<string, string>();
   const secondary = new Map<string, string[]>();
+  /** Clauses whose typing never completed, as opposed to typing to OTHER. */
+  const unchecked = new Set<string>();
 
   const batches: Clause[][] = [];
   for (let i = 0; i < clauses.length; i += BATCH_SIZE) {
@@ -101,7 +113,11 @@ export async function typeClauses(
           responseSchema: RESPONSE_SCHEMA,
         });
         const parsed = Response.safeParse(JSON.parse(raw));
-        if (!parsed.success) return;
+        if (!parsed.success) {
+          console.error("Clause typing returned an unparseable batch", raw.slice(0, 400));
+          for (const c of batch) unchecked.add(c.id);
+          return;
+        }
 
         for (const { id, clauseType, alsoCovers } of parsed.data.labels) {
           // A label off the taxonomy would join to nothing downstream, or
@@ -116,16 +132,34 @@ export async function typeClauses(
             );
           }
         }
-      } catch {
-        // A failed batch leaves its clauses unlabelled, which degrades to
-        // OTHER below rather than failing the whole document.
+      } catch (err) {
+        /**
+         * A failed batch must not fail the whole document — but it must not
+         * pass for a result either.
+         *
+         * Degrading silently to OTHER is what this used to do, and it is the
+         * most dangerous thing this pipeline can do. OTHER means "no curated
+         * rule covers this clause", so a batch that 429s produces a document
+         * with no findings and a risk score of zero. To someone reading it,
+         * that is indistinguishable from a contract with nothing wrong in it.
+         * Observed in production on an offer letter containing a
+         * twenty-four-month all-India non-compete.
+         *
+         * So the ids are recorded and reported as unchecked, which is a
+         * different statement from "checked, nothing found".
+         */
+        console.error("Clause typing batch failed", err);
+        for (const c of batch) unchecked.add(c.id);
       }
     })
   );
 
-  return clauses.map((c) => ({
-    ...c,
-    clauseType: labels.get(c.id) ?? OTHER,
-    alsoCovers: secondary.get(c.id) ?? [],
-  }));
+  return {
+    clauses: clauses.map((c) => ({
+      ...c,
+      clauseType: labels.get(c.id) ?? OTHER,
+      alsoCovers: secondary.get(c.id) ?? [],
+    })),
+    unchecked: [...unchecked],
+  };
 }

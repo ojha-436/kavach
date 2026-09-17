@@ -75,7 +75,10 @@ export async function POST(
     const clauses = await listClauses(id);
 
     await setAnalysisStatus(id, "typing");
-    const typed = await typeClauses(clauses, kind.docType);
+    const { clauses: typed, unchecked } = await typeClauses(
+      clauses,
+      kind.docType
+    );
 
     await setAnalysisStatus(id, "adjudicating", {
       progress: { total: typed.length, done: 0 },
@@ -113,6 +116,11 @@ export async function POST(
       counts,
       missingProtections,
       unanalysed,
+      // Clauses whose typing never completed. Distinct from `unanalysed`,
+      // which means "typed fine, no curated rule covers it". Without the
+      // distinction a provider outage produces an empty findings list and a
+      // risk score of zero, which reads as a clean bill of health.
+      unchecked,
       droppedCitations,
       synthesis,
       generatedAt: new Date().toISOString(),
@@ -130,6 +138,7 @@ export async function POST(
       findings,
       missingProtections,
       report,
+      unchecked,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
