@@ -12,7 +12,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
-    "start:standalone": "node scripts/serve-standalone.mjs"
+    "start:standalone": "node scripts/serve-standalone.mjs",
+    "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.0",

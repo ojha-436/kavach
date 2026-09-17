@@ -1,36 +1,40 @@
+# Build config for Cloud Run deploys.
+#
+# Exists for one reason: Next inlines NEXT_PUBLIC_* at build time, so the
+# Firebase web configuration has to reach `docker build` as build args. The
+# obvious route — `gcloud run deploy --source . --set-build-env-vars` — does
+# not do that for a Dockerfile build. It is accepted without complaint and
+# then dropped: the resulting `docker build` step carries no --build-arg, and
+# the app ships with an empty config and a sign-in button that cannot work.
+# Verified by reading the build back with `gcloud builds describe`.
+#
+# Usage is in DEPLOY.md; `npm run deploy` wraps both steps.
+substitutions:
+  _IMAGE: asia-south1-docker.pkg.dev/promptwar-501405/cloud-run-source-deploy/kavach:latest
+  _FB_API_KEY: ""
+  _FB_AUTH_DOMAIN: ""
+  _FB_PROJECT_ID: ""
+  _FB_STORAGE_BUCKET: ""
+  _FB_SENDER_ID: ""
+  _FB_APP_ID: ""
+
 steps:
-  - id: build
-    name: gcr.io/cloud-builders/docker
+  - name: gcr.io/cloud-builders/docker
     args:
       - build
+      - --build-arg=NEXT_PUBLIC_FIREBASE_API_KEY=${_FB_API_KEY}
+      - --build-arg=NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_FB_AUTH_DOMAIN}
+      - --build-arg=NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_FB_PROJECT_ID}
+      - --build-arg=NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${_FB_STORAGE_BUCKET}
+      - --build-arg=NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${_FB_SENDER_ID}
+      - --build-arg=NEXT_PUBLIC_FIREBASE_APP_ID=${_FB_APP_ID}
       - -t
-      - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:$SHORT_SHA
-      - -t
-      - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:latest
+      - ${_IMAGE}
       - .
 
-  - id: push
-    name: gcr.io/cloud-builders/docker
-    args:
-      - push
-      - --all-tags
-      - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app
-
-  - id: deploy
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    entrypoint: gcloud
-    args:
-      - run
-      - deploy
-      - kavach
-      - --image=asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:$SHORT_SHA
-      - --region=asia-south1
-      - --platform=managed
-      - --allow-unauthenticated
-
 images:
-  - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:$SHORT_SHA
-  - asia-south1-docker.pkg.dev/$PROJECT_ID/kavach/app:latest
+  - ${_IMAGE}
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

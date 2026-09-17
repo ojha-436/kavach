@@ -400,8 +400,18 @@ gcloud auth application-default login --impersonate-service-account=kavach-run@p
 Deploy:
 
 ```bash
-gcloud run deploy kavach --source . --region asia-south1
+npm run deploy
 ```
+
+Two steps, not one, and the reason is worth knowing before someone "simplifies" it back.
+Next inlines `NEXT_PUBLIC_*` at build time, so the Firebase web config has to reach
+`docker build` as build args. `gcloud run deploy --source . --set-build-env-vars` does not do
+that for a Dockerfile build — gcloud accepts the flag, silently drops it, and the resulting
+`docker build` step carries no `--build-arg` at all (confirmed by reading the build back with
+`gcloud builds describe`). Nothing errors; the app serves every page and only the sign-in
+button is dead. So the build goes through `cloudbuild.yaml`, which passes the args explicitly,
+and `npm run deploy` refuses to start if any of the six values is missing rather than shipping
+that failure quietly.
 
 Populate the judgment corpus (requires `INGEST_TOKEN`, mounted from Secret Manager; the route
 returns 404 when it isn't set, so a deployment can't expose an unauthenticated write path):
