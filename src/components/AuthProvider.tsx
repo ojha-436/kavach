@@ -68,6 +68,8 @@ function readableAuthError(err: unknown): string | null {
       return "Couldn't reach the sign-in service. Check your connection and try again.";
     case "auth/operation-not-allowed":
       return "Google sign-in isn't enabled for this project.";
+    case "auth/not-configured":
+      return "Sign-in isn't configured on this deployment. Everything except your saved history works without it.";
     default:
       return code
         ? `Sign-in failed (${code}).`

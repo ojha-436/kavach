@@ -156,10 +156,14 @@ async function judgeOne(
         prompt,
         responseSchema: RESPONSE_SCHEMA,
       });
+      // Parse once. The two optional fields are normalised to null rather
+      // than left undefined because the schema distinguishes "the model had
+      // nothing to suggest" from "the field never came back".
+      const response = JSON.parse(raw);
       const parsed = ClauseFinding.omit({ clauseId: true }).safeParse({
-        ...JSON.parse(raw),
-        negotiationAsk: JSON.parse(raw).negotiationAsk ?? null,
-        lawyerQuestion: JSON.parse(raw).lawyerQuestion ?? null,
+        ...response,
+        negotiationAsk: response.negotiationAsk ?? null,
+        lawyerQuestion: response.lawyerQuestion ?? null,
       });
       if (!parsed.success) continue;
 

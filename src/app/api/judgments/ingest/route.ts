@@ -12,6 +12,8 @@ import {
   deriveCaseNumber,
 } from "@/lib/judgments";
 import { writeJudgment } from "@/lib/firestore-admin";
+import { ingestTokenMatches } from "@/lib/ingest-auth";
+import { mapWithConcurrency } from "@/lib/concurrency";
 
 export const maxDuration = 300;
 
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!expected) {
     return NextResponse.json({ error: "Ingest is disabled" }, { status: 404 });
   }
-  if (req.headers.get("x-ingest-token") !== expected) {
+  if (!ingestTokenMatches(req.headers.get("x-ingest-token"), expected)) {
     return NextResponse.json({ error: "Not authorised" }, { status: 401 });
   }
 
@@ -41,48 +43,65 @@ export async function POST(req: NextRequest) {
   const ingested: string[] = [];
   const failed: Array<{ path: string; reason: string }> = [];
 
-  for (const path of paths.slice(0, 40)) {
-    try {
-      const pdf =
-        source === "hc"
-          ? await fetchHcJudgmentPdf(path)
-          : await fetchJudgmentPdf(path);
-      const meta =
-        source === "hc"
-          ? { citation: null, year: yearFromHcKey(path) }
-          : await fetchJudgmentMetadata(path);
+  /**
+   * Four at a time. Each item is dominated by network waits — fetch the PDF,
+   * fetch its metadata, write to Firestore — so running them one after
+   * another left the container idle for most of the batch. Four is chosen
+   * against memory rather than speed: extractPdfText holds a parsed document
+   * in memory, and the service has 1 GiB.
+   */
+  const outcomes = await mapWithConcurrency(
+    paths.slice(0, 40),
+    4,
+    async (path): Promise<{ path: string; reason?: string }> => {
+      try {
+        // Independent fetches against the same mirror; no reason to queue them.
+        const [pdf, meta] = await Promise.all([
+          source === "hc" ? fetchHcJudgmentPdf(path) : fetchJudgmentPdf(path),
+          source === "hc"
+            ? Promise.resolve({ citation: null, year: yearFromHcKey(path) })
+            : fetchJudgmentMetadata(path),
+        ]);
 
-      const { text } = await extractPdfText(pdf);
-      // Strip law-report editorial matter before anything else touches it.
-      const prepared = prepareJudgmentText(text);
-      const paragraphs = splitIntoParagraphs(prepared.body);
+        const { text } = await extractPdfText(pdf);
+        // Strip law-report editorial matter before anything else touches it.
+        const prepared = prepareJudgmentText(text);
+        const paragraphs = splitIntoParagraphs(prepared.body);
 
-      if (paragraphs.length === 0) {
-        failed.push({ path, reason: "no extractable paragraphs (likely a scan)" });
-        continue;
+        if (paragraphs.length === 0) {
+          return { path, reason: "no extractable paragraphs (likely a scan)" };
+        }
+
+        await writeJudgment({
+          judgment: {
+            id: source === "hc" ? hcIdFor(path) : path,
+            year: meta.year,
+            citation: meta.citation,
+            title: deriveTitle(prepared.header, text, path),
+            court: deriveCourt(text, source),
+            caseNumber: deriveCaseNumber(text),
+            sourceUrl: source === "hc" ? hcPdfUrlFor(path) : pdfUrlFor(path),
+            paragraphCount: paragraphs.length,
+            ingestedAt: new Date().toISOString(),
+          },
+          paragraphs,
+        });
+        return { path };
+      } catch (err) {
+        // Returned rather than thrown: one unreadable PDF should not discard
+        // the thirty-nine that worked.
+        return {
+          path,
+          reason: err instanceof Error ? err.message : "unknown error",
+        };
       }
+    },
+  );
 
-      await writeJudgment({
-        judgment: {
-          id: source === "hc" ? hcIdFor(path) : path,
-          year: meta.year,
-          citation: meta.citation,
-          title: deriveTitle(prepared.header, text, path),
-          court: deriveCourt(text, source),
-          caseNumber: deriveCaseNumber(text),
-          sourceUrl: source === "hc" ? hcPdfUrlFor(path) : pdfUrlFor(path),
-          paragraphCount: paragraphs.length,
-          ingestedAt: new Date().toISOString(),
-        },
-        paragraphs,
-      });
-      ingested.push(path);
-    } catch (err) {
-      failed.push({
-        path,
-        reason: err instanceof Error ? err.message : "unknown error",
-      });
-    }
+  for (const outcome of outcomes) {
+    if (outcome.reason)
+      failed.push({ path: outcome.path, reason: outcome.reason });
+    else ingested.push(outcome.path);
   }
 
   return NextResponse.json({ ingested, failed });

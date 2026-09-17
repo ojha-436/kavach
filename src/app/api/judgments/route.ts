@@ -13,7 +13,14 @@ export async function GET(req: NextRequest) {
   // Filter controls need to know what's actually in the corpus; offering a
   // court with nothing behind it is worse than offering no filter.
   if (sp.get("facets") === "1") {
-    return NextResponse.json(await judgmentFacets());
+    // Facets only change when the corpus is ingested, which is an admin
+    // action measured in weeks. Re-reading them from Firestore on every load
+    // of the search page is a round trip spent to learn nothing new.
+    return NextResponse.json(await judgmentFacets(), {
+      headers: {
+        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+      },
+    });
   }
 
   const q = sp.get("q") ?? "";
@@ -23,9 +30,13 @@ export async function GET(req: NextRequest) {
     caseNumber: sp.get("caseNumber"),
   };
 
-  const results = await searchJudgments(q, filters);
-
-  const user = await getSessionUser(req);
+  // Independent of each other: the search hits Firestore, the session check
+  // verifies a bearer token. Running them in series made every search wait
+  // for a token verification whose result it does not need to produce results.
+  const [results, user] = await Promise.all([
+    searchJudgments(q, filters),
+    getSessionUser(req),
+  ]);
   if (user && (q.trim() || filters.court || filters.year || filters.caseNumber)) {
     const bits = [
       q.trim(),

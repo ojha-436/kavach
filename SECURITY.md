@@ -57,10 +57,17 @@ Stated because a security page that lists only strengths is not useful.
 4. **Browser speech recognition leaves the region.** The "Speak" button uses the
    browser's own service, so spoken questions — never document text — go to the
    browser vendor. Stated in the UI, and typing avoids it entirely.
-5. **Dependency advisories remain open.** `npm audit` is clear of critical
-   findings. The rest are transitive inside Google's own Cloud SDKs
-   (`uuid@9`, `teeny-request`, `retry-request`) with no upstream fix available
-   and no path from user input. Re-checked in CI on every push.
+5. **Dependency advisories: none open.** `npm audit` reports zero
+   vulnerabilities at every severity, with and without dev dependencies. Ten
+   were open previously, and all ten came from two transitive packages that
+   Google's Cloud SDKs and Next pin below their patched versions: `uuid`
+   (GHSA-w5hq-g745-h8pq) and `postcss` (four advisories, worst a path
+   traversal that reads arbitrary `.map` files). `npm audit fix` wanted major
+   bumps of `firebase-admin`, `@google-cloud/storage`, `@google-cloud/firestore`
+   and Next 16 to resolve them; `overrides` in `package.json` reaches the same
+   patched versions without those. The transitive `uuid` is pinned with
+   `$uuid` to the direct dependency so the two cannot drift apart again.
+   CI fails the build on any advisory at moderate or above.
 
 ## Data residency
 
