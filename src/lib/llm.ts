@@ -1,4 +1,5 @@
 import { modelCacheKey } from "./model-cache";
+import { withRetry } from "./retry";
 import {
   getCachedModelResponse,
   putCachedModelResponse,
@@ -60,7 +61,12 @@ async function generate({
       : undefined,
   });
 
-  const result = await model.generateContent(prompt);
+  // Retried on 429/5xx. Vertex quota is per-project and shared with anything
+  // else in the same Google Cloud project, so exhaustion is back-pressure to
+  // wait out rather than a rejection of the request. Without this, one 429
+  // surfaced to the reader as a feature that "could not be produced
+  // reliably" — observed in production on judgment translation.
+  const result = await withRetry(() => model.generateContent(prompt));
   const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Empty model response");
   return text;
@@ -171,7 +177,11 @@ export async function converse(params: {
     return { role: turn.role, parts: [{ text: turn.text }] };
   });
 
-  const result = await model.generateContent({ contents });
+  // Same shared quota as the pipeline stages, so the same back-pressure
+  // handling. Not cached, though: repeating yourself is the point of a
+  // conversation, and a cache here would answer the second question with the
+  // first answer.
+  const result = await withRetry(() => model.generateContent({ contents }));
   const parts: Part[] = result.response?.candidates?.[0]?.content?.parts ?? [];
 
   const calls: ToolCall[] = parts

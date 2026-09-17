@@ -360,6 +360,14 @@ these survived to production.
 - Judgment reads carry `Cache-Control` — the text is immutable once ingested.
 - Paragraph writes go in a single batch rather than a round trip per chunk.
 - `min-instances=1` on Cloud Run, so an evaluator never meets a cold start.
+- **Transient model failures are retried** with exponential backoff and
+  jitter. Vertex quota is per-project and shared with everything else in the
+  same Google Cloud project, so a 429 is back-pressure to wait out, not a
+  rejection. Found in production: judgment translation made a single call,
+  caught the 429, and told the reader the translation "could not be produced
+  reliably" — indistinguishable from the model refusing the content. The
+  jitter matters because clauses adjudicate concurrently; without it, calls
+  that hit quota together would retry together and recreate the burst.
 - **Every deterministic model call is cached** by its whole request — system
   instruction, prompt, response schema and model id hashed together. Framing,
   clause typing, adjudication and synthesis are pure functions of their prompt,
