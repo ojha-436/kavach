@@ -58,7 +58,13 @@ Stated because a security page that lists only strengths is not useful.
 3. **CSP allows `'unsafe-inline'` for scripts.** A nonce policy is stronger but
    nonces are per-request and most of this app is statically prerendered, so
    there is no request in which to stamp one. The reasoning, and why the
-   residual risk is low here, is in `next.config.ts`.
+   residual risk is low here, is in `next.config.ts`. `script-src` also allows
+   `https://apis.google.com`, which Firebase Auth's popup resolver loads before
+   it makes any request of its own. Omitting it does not weaken sign-in, it
+   kills it — the SDK reports `auth/internal-error`, which names nothing
+   actionable, and the break is invisible from outside because every page
+   still renders. That is not hypothetical: it happened when this header was
+   first added, and `e2e/csp.spec.ts` exists so it cannot happen quietly again.
 4. **Browser speech recognition leaves the region.** The "Speak" button uses the
    browser's own service, so spoken questions — never document text — go to the
    browser vendor. Stated in the UI, and typing avoids it entirely.

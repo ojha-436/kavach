@@ -48,13 +48,20 @@ const nextConfig: NextConfig = {
      * judgments) goes through React, which escapes it, and there is no
      * dangerouslySetInnerHTML anywhere near user or document content.
      *
-     * Everything else is locked down: no external script origins, no plugins,
-     * no framing, no form posts off-origin, and connect-src limited to the
-     * Google APIs this actually talks to.
+     * script-src also allows https://apis.google.com, and that one is not
+     * optional. Firebase Auth's popup resolver loads Google's gapi client
+     * from there to build the auth iframe, before it makes any network call
+     * of its own. Blocking it does not degrade sign-in, it kills it: the
+     * resolver never initialises and the SDK reports auth/internal-error,
+     * which names nothing useful. This policy did block it, and sign-in was
+     * broken from the moment the header was added until someone tried the
+     * button — the accessibility suite never did, because every one of its
+     * pages is signed out. There is a regression test for it now.
      */
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      // apis.google.com: Firebase Auth's popup resolver. See above.
+      "script-src 'self' 'unsafe-inline' https://apis.google.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.googleusercontent.com",
       "font-src 'self' data:",
