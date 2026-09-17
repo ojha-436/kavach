@@ -27,11 +27,39 @@ function sweep(now: number) {
   }
 }
 
+/**
+ * The address to charge a request to.
+ *
+ * Reads the LAST hop of X-Forwarded-For, not the first. This used to take the
+ * first, which made the whole limiter ornamental: a caller who sends their
+ * own X-Forwarded-For gets it kept and the real address appended after it, so
+ * varying that header put every request in a fresh bucket. Measured against
+ * the deployed service — 25 requests against a limit of 20, each with a
+ * different spoofed value, produced zero 429s.
+ *
+ * The chain Cloud Run hands the container looks like this, verified the same
+ * way rather than assumed:
+ *
+ *   sent nothing                -> "<caller>"
+ *   sent "a"                    -> "a,<caller>"
+ *   sent "a, b"                 -> "a, b,<caller>"
+ *
+ * Everything a caller supplies is pushed left; the address Cloud Run appends
+ * is always last and cannot be displaced. Which end to trust is not a detail
+ * worth guessing at, because the two ways of getting it wrong fail in
+ * opposite directions: trust a forgeable hop and the limit does nothing at
+ * all, trust a shared proxy hop and every user on the internet shares one
+ * bucket.
+ *
+ * This is specific to running behind Cloud Run's front end. Moving the
+ * service behind another proxy means re-checking how many hops it appends.
+ */
 export function clientKey(req: NextRequest): string {
-  // Cloud Run puts the caller first in X-Forwarded-For.
-  const forwarded = req.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim();
-  return ip || "unknown";
+  const hops = (req.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+  return hops[hops.length - 1] || "unknown";
 }
 
 export type RateLimit = { limit: number; windowMs: number };

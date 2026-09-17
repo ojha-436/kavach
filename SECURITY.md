@@ -50,6 +50,11 @@ Stated because a security page that lists only strengths is not useful.
 2. **Rate limiting is per Cloud Run instance**, held in memory. Under multiple
    instances the effective limit is higher than the configured one. A shared
    counter or Cloud Armor is the production answer; this stops casual abuse.
+   It is keyed on the last `X-Forwarded-For` hop, which is the address Cloud
+   Run appends and the one value a caller cannot displace. Keying on the first
+   hop — which it did until recently — made the limit bypassable by sending a
+   different forged header each request; that is a regression test now, in
+   `src/lib/rate-limit.test.ts`.
 3. **CSP allows `'unsafe-inline'` for scripts.** A nonce policy is stronger but
    nonces are per-request and most of this app is statically prerendered, so
    there is no request in which to stamp one. The reasoning, and why the
