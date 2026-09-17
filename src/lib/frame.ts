@@ -58,16 +58,24 @@ export async function detectDocumentKind(text: string): Promise<DocumentKind> {
     });
     const parsed = DocumentKind.safeParse(JSON.parse(raw));
     if (parsed.success) return parsed.data;
-  } catch {
-    // Fall through to the unknown frame below.
+    console.error("Document identification returned an unparseable frame", raw.slice(0, 400));
+  } catch (err) {
+    // Logged rather than swallowed. This catch used to be silent, which made
+    // a provider outage look identical to a document genuinely out of scope —
+    // there was no way to tell, from outside or from the logs, which had
+    // happened.
+    console.error("Document identification failed", err);
   }
 
-  // Detection failing must not block the upload — the user still gets their
-  // clauses and can still ask questions, just without rule-pack coverage.
+  // Detection failing must not block the upload — the reader still gets their
+  // clauses and can still ask questions. But it must not be reported as a
+  // conclusion about their document either, so this is flagged as a failure
+  // rather than presented as "unrecognised".
   return {
     docType: "other",
-    label: "Unrecognised document",
+    label: "Document type not identified",
     state: null,
     userSide: "unknown",
+    detectionFailed: true,
   };
 }

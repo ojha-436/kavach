@@ -91,6 +91,23 @@ describe("withRetry", () => {
     expect(waits).toEqual([100, 200, 400]);
   });
 
+  it("caps the wait, so six attempts stay inside the request timeout", async () => {
+    // Uncapped, attempt 6 would wait 32s and the total would approach Cloud
+    // Run's 300s ceiling with jitter on top.
+    const waits: number[] = [];
+    await expect(
+      withRetry(vi.fn().mockRejectedValue(vertex429), {
+        attempts: 6,
+        baseDelayMs: 1000,
+        maxDelayMs: 4000,
+        random: () => 0,
+        sleep: async (ms) => void waits.push(ms),
+      })
+    ).rejects.toThrow();
+    expect(waits).toEqual([1000, 2000, 4000, 4000, 4000]);
+    expect(waits.reduce((a, b) => a + b, 0)).toBeLessThan(300_000);
+  });
+
   it("jitters, so concurrent callers do not retry in lockstep", async () => {
     // Several clauses adjudicate at once; if they hit quota together and all
     // slept the identical interval, they would recreate the same burst.

@@ -50,6 +50,8 @@ export function isRetryableModelError(err: unknown): boolean {
 export type RetryOptions = {
   attempts?: number;
   baseDelayMs?: number;
+  /** Ceiling per wait, so six attempts stay inside Cloud Run's 300s. */
+  maxDelayMs?: number;
   /** Injected in tests so they do not spend real seconds sleeping. */
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
@@ -60,8 +62,15 @@ export async function withRetry<T>(
   options: RetryOptions = {}
 ): Promise<T> {
   const {
-    attempts = 3,
+    // Six attempts with a capped backoff spans roughly a minute, which is the
+    // horizon that matters: gemini-2.5-flash in asia-south1 runs on shared
+    // capacity rather than a fixed per-project allowance, so 429s come in
+    // bursts lasting tens of seconds. Three attempts over seven seconds --
+    // the first version of this -- gave up while the pool was still busy and
+    // surfaced the outage as a conclusion about the user's document.
+    attempts = 6,
     baseDelayMs = 1000,
+    maxDelayMs = 16000,
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
     random = Math.random,
   } = options;
@@ -79,7 +88,7 @@ export async function withRetry<T>(
       if (!isRetryableModelError(err)) throw err;
       if (attempt === attempts - 1) break;
 
-      const backoff = baseDelayMs * 2 ** attempt;
+      const backoff = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
       await sleep(backoff + random() * backoff);
     }
   }

@@ -329,7 +329,25 @@ export default function AnalyzePage() {
             </p>
           )}
 
-          {!covered && (
+          {/* Two different situations that both leave the document unjudged.
+              Saying "this is an unrecognised document" when the truth is "we
+              could not reach the model" states something false about the
+              reader's contract, and invites them to conclude their offer
+              letter is somehow unusual. */}
+          {!covered && kind?.detectionFailed && (
+            <p
+              role="status"
+              className="mt-4 border border-caution bg-caution-wash px-4 py-3 font-sans text-sm text-caution"
+            >
+              Kavach couldn&apos;t identify what kind of document this is — the
+              service was briefly unavailable, not something about your document.
+              Your clauses are below and you can still ask questions about them.
+              Re-uploading in a minute will usually get the clause-by-clause check
+              running.
+            </p>
+          )}
+
+          {!covered && !kind?.detectionFailed && (
             <p
               role="status"
               className="mt-4 border border-caution bg-caution-wash px-4 py-3 font-sans text-sm text-caution"

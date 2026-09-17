@@ -56,6 +56,19 @@ export const DocumentKind = z.object({
   label: z.string(),
   state: z.string().nullable().optional().default(null),
   userSide: UserSide,
+  /**
+   * True when identification did not run to completion — the model was
+   * unreachable or its answer did not parse — as opposed to running and
+   * concluding the document is out of scope.
+   *
+   * The distinction is the whole point. Both end up as docType "other", and
+   * without this flag the two are indistinguishable, so a provider outage
+   * told the reader their employment offer letter was an unrecognised
+   * document. That is a false statement about their document dressed up as a
+   * finding, which is exactly what this product is supposed not to do. The
+   * model never sets this; only the fallback does.
+   */
+  detectionFailed: z.boolean().optional(),
 });
 export type DocumentKind = z.infer<typeof DocumentKind>;
 

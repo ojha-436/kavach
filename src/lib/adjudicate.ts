@@ -247,7 +247,7 @@ export async function adjudicateClauses(
     .filter((h): h is string => !!h);
 
   /**
-   * Six model calls in flight at a time, not one per clause.
+   * Three model calls in flight at a time, not one per clause.
    *
    * Promise.all over every judgeable clause meant a forty-clause contract
    * opened forty simultaneous Vertex AI requests. That is not faster in any
@@ -258,10 +258,18 @@ export async function adjudicateClauses(
    * failure this pipeline should not produce quietly, because a clause that
    * silently went unjudged reads to the user exactly like a clause with
    * nothing wrong in it.
+   *
+   * Three rather than six after watching it in production: gemini-2.5-flash
+   * in asia-south1 draws on shared capacity rather than a fixed per-project
+   * allowance, and six in flight was enough to provoke sustained 429s across
+   * the whole pipeline — including the document-identification call that runs
+   * before any of this. Lower concurrency plus a retry horizon measured in
+   * tens of seconds finishes sooner than a burst that spends its attempts
+   * being refused.
    */
   const results = await mapWithConcurrency(
     judgeable,
-    6,
+    3,
     ({ clause, rules }) =>
       judgeOne(
         clause,
