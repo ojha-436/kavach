@@ -83,7 +83,8 @@ to a lawyer.
     The agent has no page of its own: Ask sits beside the document on `/analyze` and beside
     the judgment on `/judgments/{id}`, because a question about a document belongs next to it.
 - **Repo:** https://github.com/ojha-436/kavach (public)
-- **Demo video:** not recorded yet — the one deliverable still outstanding.
+- **Demo video:** not recorded yet. The shooting script, scene timings and captured
+  screenshots are in [`WALKTHROUGH.md`](WALKTHROUGH.md); only the recording itself is outstanding.
 
 ## Scope decisions log
 
