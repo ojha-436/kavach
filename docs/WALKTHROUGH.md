@@ -40,16 +40,15 @@ subject is somebody's job.
 
 **On screen:** `01-home.png`. The landing page. Let the headline hold for a beat before speaking.
 
-> Most people sign a contract they can't read. Not because they're careless — because a rental
-> agreement or an offer letter is written in language that takes training to parse, and the
-> person signing it usually has neither the training nor a lawyer on call.
+> Most people sign a contract they can't read. Not because they're careless, but because an
+> offer letter is written in language that takes training to parse, and the person signing it
+> rarely has a lawyer on call.
 >
-> The interesting part is that a lot of what's in those contracts can't legally be enforced
-> anyway. The clause is there, you sign it, and you spend two years believing you're bound by
-> something a court would throw out.
+> Here's the part that surprises people: a lot of what's in those contracts can't be enforced
+> anyway. You sign it, and you spend two years believing you're bound by something a court would
+> throw out.
 >
-> Kavach reads the document and tells you which parts of it can't be used against you — and shows
-> you the law that says so.
+> Kavach tells you which parts can't be used against you, and shows you the law that says so.
 
 ---
 
@@ -57,64 +56,54 @@ subject is somebody's job.
 
 **On screen:** `02-upload.png`, then drag the offer letter in. Let the real upload run.
 
-> You upload any Indian legal document. A rental agreement, an offer letter, a loan agreement, a
-> notice — there's no category to pick first, because asking a worried person to classify their
-> own contract before you'll look at it is a strange thing to do. Kavach works out what it is.
+> You upload any Indian legal document. There's no category to pick first, because asking a
+> worried person to classify their own contract before you'll look at it is a strange thing to do.
 >
-> The file goes straight from the browser to storage. It's processed in Mumbai, and if you're not
-> signed in it's deleted within twenty-four hours.
+> The file goes straight from your browser to storage. It's processed in Mumbai, and if you're
+> not signed in, it's deleted within twenty-four hours.
 
 ---
 
-## Scene 3 — What it found · 0:50–1:30
+## Scene 3 — What it found · 0:50–1:22
 
 **On screen:** `03-verdicts.png`. Pause on the summary bar before scrolling.
 
-> It's identified this as an employment offer letter governed by Karnataka law, and split it into
+> It's identified this as an employment offer letter under Karnataka law, and split it into
 > twelve clauses.
 >
-> Risk score twenty-nine out of a hundred. One clause void. Two partly unenforceable. Three
-> one-sided but valid. Three standard.
->
-> Those aren't sentiment labels. Each one is a verdict against a specific statutory rule, and the
-> document itself is tinted with them — so you can see, reading down the page, which paragraphs
-> are the problem.
+> Risk score twenty-nine out of a hundred. One clause void. Two unenforceable in part. Three
+> one-sided. Three standard. Each of those is a verdict against a specific statutory rule, and the
+> document itself is tinted with them.
 
 **Cut to:** click clause 6, Non-Competition (`08-void-finding.png`).
 
 > Here's the one that matters. Twenty-four months, anywhere in India, any competing business.
 >
-> Void. Not "harsh", not "unusual" — void. Section twenty-seven of the Indian Contract Act, 1872,
-> and the Supreme Court in Superintendence Company versus Krishan Murgai. A restraint on your
-> trade after employment ends is not enforceable in India.
+> Void. Not harsh, not unusual. Void. Section twenty-seven of the Indian Contract Act, and the
+> Supreme Court in Superintendence Company versus Krishan Murgai.
 >
-> And underneath: what to ask for instead. Ask for it to be deleted, or narrowed so it only
-> applies while you're still employed.
+> And underneath, what to ask for instead.
 
 ---
 
-## Scene 4 — How it knows · 1:30–2:05
+## Scene 4 — How it knows · 1:22–2:00
 
-**On screen:** stay on the finding; optionally cut to `README.md` §"How the grounding actually
-works" or the rule pack JSON.
+**On screen:** stay on the finding, or cut to the rule pack JSON.
 
-> This is the part worth being precise about, because it's where most tools of this shape go
-> wrong.
+> This next part is where most tools of this shape go wrong.
 >
-> Kavach doesn't search a pile of legal text and hope the model summarises it correctly. Every
-> clause is matched to a hand-curated pack of Indian statutory rules through a plain lookup —
-> clause type to rule, no embeddings, no similarity score. Forty-one rules across rental and
-> employment.
+> Kavach doesn't search a pile of legal text and hope the model summarises it correctly. Each
+> clause is matched to a hand-curated pack of Indian statutory rules through a plain lookup. No
+> embeddings, no similarity score. Forty-one rules.
 >
-> The model's job is to apply a rule it's been handed and explain it in plain English. It is never
-> asked which law applies.
+> The model applies a rule it's been handed. It's never asked which law applies.
 >
-> Then, after it answers, every citation is checked back against the pack. If the model cites a
-> rule that isn't in there, the citation is deleted before you ever see it — and if a finding
-> loses all of its citations, its confidence is downgraded and it's flagged for a lawyer.
+> Then every citation is checked back against the pack. Cite a rule that isn't in there and the
+> citation is deleted before you see it. Lose all your citations and the finding is downgraded and
+> flagged for a lawyer.
 >
-> That's the difference between a tool that usually cites correctly and one where a fabricated
-> section number is structurally unable to reach the screen.
+> That's the difference between usually citing correctly, and a made-up section number being
+> unable to reach the screen.
 
 ---
 
@@ -122,15 +111,15 @@ works" or the rule pack JSON.
 
 **On screen:** `09-missing-protections.png`.
 
-> The harder question is the one a chat-with-your-PDF tool structurally cannot answer: not what's
-> in your contract, but what's missing from it.
+> The harder question is one a chat-with-your-PDF tool structurally cannot answer. Not what's in
+> your contract, but what's missing from it.
 >
-> This offer letter has no stated process before dismissal for cause. No show-cause notice, no
-> inquiry, no chance to respond. That absence is invisible to anything that only reads what's on
-> the page — there's nothing to highlight.
+> This offer letter has no stated process before dismissal for cause. No notice, no inquiry, no
+> chance to respond. There's nothing on the page to highlight, so nothing that only reads the page
+> can find it.
 >
-> Kavach compares the document against the protections that ought to be there for its type, and
-> tells you which ones aren't, and what to ask for.
+> Kavach checks the document against the protections that should be there, and tells you which
+> ones aren't.
 
 ---
 
@@ -138,12 +127,10 @@ works" or the rule pack JSON.
 
 **On screen:** `10-what-to-do.png`, `11-checklist.png`, `12-lawyer-questions.png`.
 
-> A verdict you can't act on isn't much use. So the last step turns all of it into three things
-> you can actually take away.
+> A verdict you can't act on isn't much use. So this becomes three things you can take away.
 >
-> A checklist, ordered by what costs you most if you ignore it. A draft negotiation email you can
-> copy. And the specific questions to put to a lawyer — because some of this turns on facts the
-> document doesn't contain, and the honest answer there is a question, not an opinion.
+> A checklist, ordered by what costs you most if you ignore it. A draft negotiation email. And the
+> questions to put to a lawyer, because some of this turns on facts the document doesn't contain.
 
 ---
 
@@ -151,13 +138,12 @@ works" or the rule pack JSON.
 
 **On screen:** `13-ask.png`. Type a real question: *"Can they really stop me joining a competitor?"*
 
-> You can ask about your own document. The assistant answers from tools that read your clauses and
-> the rule pack — it has no free-form path to a legal answer, which means it can't invent one.
+> You can ask about your own document. The assistant answers from tools that read your clauses
+> and the rule pack. It has no free-form path to a legal answer, so it can't invent one.
 >
-> And when a question turns on something outside the document, it says so and hands you the
-> question to ask instead. Refusing is a feature here, not a failure. The brief was information
-> and assistance, not replacing a lawyer, and that line is drawn in the code rather than in a
-> footer.
+> When a question turns on something outside the document, it says so and hands you the question
+> to ask instead. Refusing is a feature here. The brief was information, not replacing a lawyer,
+> and that line is drawn in the code rather than in a footer.
 
 ---
 
@@ -165,15 +151,12 @@ works" or the rule pack JSON.
 
 **On screen:** `04-compare.png`, then load two offer letters and run it.
 
-> If you're holding two offers, or the same contract before and after the edits you asked for,
-> Kavach compares them topic by topic — and each of them against the protections a document of
-> that kind should contain.
+> If you're holding two offers, or the same contract before and after your edits, Kavach compares
+> them topic by topic, and each against the protections that document should contain.
 >
-> The comparison is deterministic. It isn't a model deciding which contract it prefers; it's the
-> same statutory rules applied to both, with the differences ranked by what they cost the person
-> signing.
+> The comparison is deterministic. It isn't a model deciding which contract it prefers.
 >
-> It will not tell you which one to sign. That's a judgement about your life, and it isn't the
+> It won't tell you which one to sign. That's a judgement about your life, and it isn't the
 > software's to make.
 
 ---
@@ -185,28 +168,27 @@ works" or the rule pack JSON.
 > The second surface is court judgments. A Supreme Court judgment runs to dozens of pages and
 > often doesn't say who won until the end.
 >
-> Search by court, year or case number. Then: what the court was asked, what it decided, and why —
-> in plain English, with every claim citing the paragraph of the judgment it came from. Click one
-> and you land on that paragraph.
+> Search by court, year or case number. Then: what the court was asked, what it decided, and why,
+> in plain English, with every claim citing the paragraph it came from.
 >
-> Same discipline as before. A paragraph citation that can't be resolved is dropped, and the page
-> tells you how many were dropped rather than quietly rendering a claim with nothing behind it.
+> Same discipline. A citation that can't be resolved is dropped, and the page tells you how many
+> were dropped rather than quietly showing a claim with nothing behind it.
 >
-> And it reads in twelve Indian languages — the judgment is about your life whether or not you
-> read English.
+> And it reads in twelve Indian languages.
 
 ---
 
-## Scene 10 — It remembers · 4:20–4:40
+## Scene 10 — It remembers · 4:20–4:48
 
-**On screen:** `07-history.png`, signed in. Click an entry and let it reopen.
+**On screen:** `07-history.png` signed out, then reopen the analysis by its link.
 
-> Sign in with Google and your work is kept. Every upload, every question, every judgment search.
+> Sign in and your work is kept. Every upload, every question, every search.
 >
-> Click one and you're back where you left it — the document, the verdicts, the report, exactly as
-> it was. Not the page it was on. The session.
+> Signed out, nothing is recorded at all. Keeping a trail for someone who never identified
+> themselves collects more than this product needs, so it doesn't.
 >
-> History is only recorded for signed-in users, and clearing it actually deletes it.
+> And reopening one doesn't just take you to the page. The document, the verdicts, the report all
+> come back exactly as you left them. Not the page. The session.
 
 ---
 
@@ -217,9 +199,8 @@ works" or the rule pack JSON.
 > Everything runs in Mumbai, including the model, because a product built around the DPDP Act
 > shouldn't ship your rental agreement overseas to read it.
 >
-> Kavach won't tell you what to do. It'll tell you which parts of what you're about to sign
-> aren't enforceable, what's missing, and what to ask for — with the section number, so you can
-> check it yourself.
+> Kavach won't tell you what to do. It'll tell you what isn't enforceable, what's missing, and
+> what to ask for, with the section number, so you can check it yourself.
 
 ---
 
@@ -240,11 +221,32 @@ works" or the rule pack JSON.
 
 `*-full.png` variants are full-page captures, useful for slow scrolling shots in the edit.
 
-## If you'd rather not narrate it yourself
+## How the recorded cut was made
 
-The script is written to be spoken, so it reads acceptably through a good synthetic voice. Two
-things matter more than which tool you pick: choose an Indian English voice, and turn the pace
-down slightly from default — the statutory references need room. Feed it scene by scene rather
-than as one block, so a single awkward sentence doesn't cost you the whole take.
+`kavach-walkthrough.mp4` (6:43, 1920×1080) was produced entirely from this script against the
+live service, and can be regenerated:
 
-Read it aloud once before recording. Anywhere you run out of breath is a sentence worth cutting.
+- **Narration** — `edge-tts` with `en-IN-PrabhatNeural` at `-4%` rate, one file per scene, taken
+  from the blockquotes below. Scene-by-scene rather than one block, so a single awkward sentence
+  costs one take rather than all of them.
+- **Screen** — Playwright drives the deployed site at 1920×1080 with an eased scroll, and each
+  scene's choreography is padded to the exact duration of its narration file. Video and audio
+  came out 0.18s apart across six and a half minutes.
+- **Mux** — ffmpeg, H.264 CRF 23 + AAC 160k, `+faststart`.
+
+Two notes for anyone re-recording it.
+
+**Warm the translation you plan to show.** Scene 9 switches to Tamil because Tamil is in the
+cache and renders in under half a second. Hindi was the first choice and it spent eighty seconds
+retrying before giving up — not a Hindi bug, just an exhausted shared quota on the day.
+
+**Check that your check can fail.** An earlier take verified the language switch by testing the
+page for any Devanagari character, which is always true, because the wordmark in the header is
+कवच. It reported success and shipped a scene showing English under narration claiming twelve
+languages. Counting characters, and requiring hundreds, is what caught it.
+
+## If you'd rather narrate it yourself
+
+Better, if you can. The script is written to be spoken and an Indian English speaker who
+understands Section 27 will beat any synthetic voice on the lines that carry the argument. Read
+it aloud once first — anywhere you run out of breath is a sentence worth cutting.
