@@ -11,6 +11,7 @@ import {
   setAnalysisKind,
   writeClauses,
   recordActivity,
+  writeDocumentText,
 } from "@/lib/firestore-admin";
 import { getSessionUser } from "@/lib/auth-server";
 
@@ -60,8 +61,12 @@ export async function POST(req: NextRequest) {
       docType: kind.docType,
       docLabel: kind.label,
       state: kind.state ?? null,
+      userSide: kind.userSide,
     });
     await writeClauses(id, clauses);
+    // Stored so the analysis can be reopened from history. The page renders
+    // the document by slicing this exact string with the clause offsets.
+    await writeDocumentText(id, extracted.text);
     await setAnalysisStatus(id, "segmented", {
       progress: { total: clauses.length, done: clauses.length },
     });

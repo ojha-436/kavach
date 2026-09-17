@@ -462,7 +462,11 @@ curl -X POST "$URL/api/judgments/ingest" -H "x-ingest-token: $TOKEN" -H "Content
 - Every service in `asia-south1`. Documents are processed and stored in India.
 - **Anonymous analyses are deleted after 24 hours** — a GCS lifecycle rule on the bucket and a
   Firestore TTL policy on `expiresAt`, both actually enforced, not just promised.
-- Signed-in users keep their documents until they delete them.
+- Signed-in users keep their analyses until they delete them, and can reopen one from history —
+  the extracted text, the clause verdicts and the report are all stored, so the page redraws as
+  it was left. The **uploaded file itself is deleted within 24 hours either way**: the GCS
+  lifecycle rule does not distinguish signed-in from anonymous, and it is the original PDF or
+  DOCX that goes, not the analysis.
 - **History is recorded for signed-in users only.** Keeping an activity trail for someone who never
   identified themselves would collect more than this product needs.
 - Delete-all-history is a real button that really deletes.

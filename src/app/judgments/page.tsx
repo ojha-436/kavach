@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useAuth } from "@/components/AuthProvider";
@@ -35,27 +35,78 @@ export default function JudgmentsPage() {
     })();
   }, []);
 
-  async function search(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim() && !court && !year && !caseNumber.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (query.trim()) params.set("q", query.trim());
-      if (court) params.set("court", court);
-      if (year) params.set("year", year);
-      if (caseNumber.trim()) params.set("caseNumber", caseNumber.trim());
+  const runSearch = useCallback(
+    async (filters: {
+      q: string;
+      court: string;
+      year: string;
+      caseNumber: string;
+    }) => {
+      if (!filters.q && !filters.court && !filters.year && !filters.caseNumber) {
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (filters.q) params.set("q", filters.q);
+        if (filters.court) params.set("court", filters.court);
+        if (filters.year) params.set("year", filters.year);
+        if (filters.caseNumber) params.set("caseNumber", filters.caseNumber);
 
-      const res = await authedFetch(`/api/judgments?${params}`);
-      const data = await res.json();
-      setResults(data.results ?? []);
-    } catch {
-      setError("Couldn't reach the judgment search. Please try again.");
-      setResults([]);
-    } finally {
-      setBusy(false);
-    }
+        const res = await authedFetch(`/api/judgments?${params}`);
+        const data = await res.json();
+        setResults(data.results ?? []);
+      } catch {
+        setError("Couldn't reach the judgment search. Please try again.");
+        setResults([]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [authedFetch]
+  );
+
+  /**
+   * Replays a search arrived at from history, e.g.
+   * /judgments?q=insolvency&court=Supreme%20Court%20of%20India.
+   *
+   * Split from the submit handler rather than faking a form submission: the
+   * search is a function of its filters, and tying it to an event meant the
+   * only way to run one was for a human to press the button.
+   */
+  const replayed = useRef(false);
+
+  useEffect(() => {
+    if (replayed.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const restored = {
+      q: params.get("q") ?? "",
+      court: params.get("court") ?? "",
+      year: params.get("year") ?? "",
+      caseNumber: params.get("caseNumber") ?? "",
+    };
+    if (!Object.values(restored).some(Boolean)) return;
+    replayed.current = true;
+
+    // Put the filters back in the controls too, so the reopened search is
+    // something the reader can see and adjust, not just a result list that
+    // appeared from nowhere.
+    setQuery(restored.q);
+    setCourt(restored.court);
+    setYear(restored.year);
+    setCaseNumber(restored.caseNumber);
+    void runSearch(restored);
+  }, [runSearch]);
+
+  function search(e: React.FormEvent) {
+    e.preventDefault();
+    void runSearch({
+      q: query.trim(),
+      court,
+      year,
+      caseNumber: caseNumber.trim(),
+    });
   }
 
   function reset() {

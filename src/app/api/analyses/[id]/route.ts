@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAnalysis, listClauses } from "@/lib/firestore-admin";
+import {
+  getAnalysis,
+  listClauses,
+  getReport,
+  getDocumentText,
+} from "@/lib/firestore-admin";
 import { getSessionUser } from "@/lib/auth-server";
 
 export async function GET(
@@ -25,6 +30,15 @@ export async function GET(
     }
   }
 
-  const clauses = await listClauses(id);
-  return NextResponse.json({ analysis, clauses });
+  // Everything the analysis page needs to render itself as it was left:
+  // the document text the clause offsets point into, the clauses with the
+  // verdicts Stage 4 wrote onto them, and the Stage 6 report. Independent
+  // reads, so they go together rather than in series.
+  const [clauses, report, text] = await Promise.all([
+    listClauses(id),
+    getReport(id),
+    getDocumentText(id),
+  ]);
+
+  return NextResponse.json({ analysis, clauses, report, text });
 }

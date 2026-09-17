@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AskPanel } from "@/components/AskPanel";
 import { ActionReport, type Synthesis } from "@/components/ActionReport";
@@ -19,7 +19,7 @@ import {
   ExpectedProtection,
 } from "@/lib/schema";
 
-type Status = "idle" | "uploading" | "working" | "ready" | "error";
+type Status = "idle" | "restoring" | "uploading" | "working" | "ready" | "error";
 
 const CONTENT_TYPES: Record<string, string> = {
   ".pdf": "application/pdf",
@@ -33,7 +33,7 @@ function contentTypeFor(fileName: string): string | null {
 }
 
 export default function AnalyzePage() {
-  const { user, authedFetch } = useAuth();
+  const { user, loading: authLoading, authedFetch } = useAuth();
   const [status, setStatus] = useState<Status>("idle");
   const [statusDetail, setStatusDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +58,106 @@ export default function AnalyzePage() {
     unanalysed: string[];
     synthesis?: Synthesis;
   } | null>(null);
+
+  /**
+   * Reopening an analysis from the history page, via /analyze?id=<id>.
+   *
+   * History entries have always linked here with the id attached; nothing
+   * ever read it, so following your own history landed on an empty upload
+   * page. Everything needed was already in Firestore — the clauses carry
+   * their verdicts and the report is its own document — except the document
+   * text, which was returned to the browser and then dropped. It is stored
+   * now, because the rendering below slices it with the clause offsets and a
+   * reconstruction from the clauses alone would lose every gap between them.
+   *
+   * Read from window.location rather than useSearchParams deliberately.
+   * useSearchParams would force this page out of static prerendering unless
+   * the whole component is split behind a Suspense boundary, and the page is
+   * prerendered today — the accessibility suite runs against that output.
+   * The restore happens in an effect either way, so there is nothing to gain
+   * from the hook and a working prerender to lose.
+   *
+   * Waits for auth to settle first. An owned analysis returns 404 to anyone
+   * who is not its owner, and an unauthenticated request during the auth
+   * round trip looks exactly like someone else asking.
+   */
+  const restoredId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    const id = new URLSearchParams(window.location.search).get("id");
+    if (!id || restoredId.current === id) return;
+    restoredId.current = id;
+
+    let cancelled = false;
+
+    void (async () => {
+      setStatus("restoring");
+      setStatusDetail("Reopening your analysis…");
+      setError(null);
+      try {
+        const res = await authedFetch(`/api/analyses/${id}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (!res.ok) {
+          setStatus("error");
+          setError(
+            res.status === 404
+              ? "That analysis has expired or belongs to another account."
+              : (data.error ?? "That analysis could not be reopened.")
+          );
+          return;
+        }
+
+        if (!data.text) {
+          // Analyses created before the text was persisted cannot be redrawn,
+          // and half a document is worse than an honest refusal.
+          setStatus("error");
+          setError(
+            "This analysis was created before documents were saved for reopening. Upload it again to see it."
+          );
+          return;
+        }
+
+        const analysis = data.analysis ?? {};
+        const clauseList: Clause[] = data.clauses ?? [];
+
+        currentAnalysis.current = id;
+        setAnalysisId(id);
+        setText(data.text);
+        setClauses(clauseList);
+        setKind({
+          docType: analysis.docType,
+          label: analysis.docLabel ?? "Document",
+          state: analysis.state ?? null,
+          userSide: analysis.userSide ?? "reader",
+        });
+        setCovered(analysis.docType !== "other");
+        setFindings(
+          Object.fromEntries(
+            clauseList
+              .map((c) => (c as Clause & { finding?: ClauseFinding | null }).finding)
+              .filter((f): f is ClauseFinding => !!f)
+              .map((f) => [f.clauseId, f])
+          )
+        );
+        setMissing(data.report?.missingProtections ?? []);
+        setReport(data.report ?? null);
+        setStatus("ready");
+      } catch {
+        if (!cancelled) {
+          setStatus("error");
+          setError("That analysis could not be reopened. Please try again.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, authedFetch]);
 
   async function adjudicate(id: string) {
     setJudging(true);
@@ -350,7 +450,11 @@ export default function AnalyzePage() {
     );
   }
 
-  const working = status === "uploading" || status === "working";
+  // "restoring" belongs here too: reopening from history is a wait like any
+  // other, and without it the page shows an idle dropzone while a fetch is in
+  // flight, which reads as "nothing happened" and invites a second upload.
+  const working =
+    status === "uploading" || status === "working" || status === "restoring";
 
   return (
     <>

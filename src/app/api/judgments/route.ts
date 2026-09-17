@@ -49,7 +49,17 @@ export async function GET(req: NextRequest) {
       kind: "judgment_search",
       summary: `Searched judgments: ${bits.join(" · ")}`,
       detail: `${results.length} result${results.length === 1 ? "" : "s"}`,
-      href: null,
+      // Carries the search itself, so the history entry reopens the results
+      // rather than an empty search box. It was null, which made judgment
+      // searches the one kind of history entry you could not click.
+      href: `/judgments?${new URLSearchParams(
+        Object.entries({
+          q: q.trim(),
+          court: filters.court ?? "",
+          year: filters.year ?? "",
+          caseNumber: filters.caseNumber ?? "",
+        }).filter(([, v]) => v) as [string, string][]
+      )}`,
     });
   }
 

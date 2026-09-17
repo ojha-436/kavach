@@ -9,6 +9,7 @@ import {
   JudgmentExplanation,
   JudgmentParagraph,
 } from "./schema";
+import { chunkText } from "./chunk-text";
 import type { Synthesis } from "./synthesize";
 
 let db: Firestore | null = null;
@@ -58,7 +59,12 @@ export async function createAnalysis(params: {
 
 export async function setAnalysisKind(
   id: string,
-  kind: { docType: Analysis["docType"]; docLabel: string; state: string | null }
+  kind: {
+    docType: Analysis["docType"];
+    docLabel: string;
+    state: string | null;
+    userSide?: Analysis["userSide"];
+  }
 ): Promise<void> {
   await client().collection("analyses").doc(id).set(kind, { merge: true });
 }
@@ -92,14 +98,22 @@ export async function writeClauses(
   await batch.commit();
 }
 
-export async function listClauses(analysisId: string): Promise<Clause[]> {
+/**
+ * A clause as it comes back out of Firestore, which is a clause plus whatever
+ * Stage 4 wrote onto it. The stored shape has always carried the finding;
+ * `listClauses` just asserted it away as `Clause[]`, so reopening an analysis
+ * had no typed route to the verdicts that were sitting right there.
+ */
+export type StoredClause = Clause & { finding?: ClauseFinding | null };
+
+export async function listClauses(analysisId: string): Promise<StoredClause[]> {
   const snap = await client()
     .collection("analyses")
     .doc(analysisId)
     .collection("clauses")
     .orderBy("startOffset", "asc")
     .get();
-  return snap.docs.map((d) => d.data() as Clause);
+  return snap.docs.map((d) => d.data() as StoredClause);
 }
 
 /**
@@ -523,4 +537,60 @@ export async function putCachedModelResponse(
         now.getTime() + MODEL_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
       ),
     });
+}
+
+/* ---------- Document text ---------- */
+
+/**
+ * The extracted text of an uploaded document, stored so an analysis can be
+ * reopened later.
+ *
+ * It was previously never persisted at all: `/api/analyze` returned it to the
+ * browser and then dropped it. That was invisible until someone followed a
+ * history entry back to their own analysis and found a blank upload page,
+ * because the page renders the document by slicing this string with each
+ * clause's offsets.
+ *
+ * Re-extracting from the original upload is not a substitute. The uploads
+ * bucket deletes every object after one day, so for anything older than that
+ * the file is simply gone — and re-running the PDF parser would risk
+ * producing text that differs by a character from the one the offsets were
+ * computed against.
+ */
+export async function writeDocumentText(
+  analysisId: string,
+  text: string
+): Promise<void> {
+  const db = client();
+  const col = db.collection("analyses").doc(analysisId).collection("document");
+
+  // Clear first: a re-analysis producing shorter text would otherwise leave
+  // tail chunks behind and reassemble into a document with a garbled end.
+  const existing = await col.get();
+  const batch = db.batch();
+  for (const doc of existing.docs) batch.delete(doc.ref);
+
+  chunkText(text).forEach((chunk, i) => {
+    batch.set(col.doc(String(i)), { text: chunk });
+  });
+  await batch.commit();
+}
+
+export async function getDocumentText(
+  analysisId: string
+): Promise<string | null> {
+  const snap = await client()
+    .collection("analyses")
+    .doc(analysisId)
+    .collection("document")
+    .get();
+  if (snap.empty) return null;
+
+  // Ordered numerically, not lexicographically: Firestore sorts document ids
+  // as strings, which would put chunk 10 immediately after chunk 1 and
+  // reassemble the document out of order.
+  return snap.docs
+    .sort((a, b) => Number(a.id) - Number(b.id))
+    .map((d) => (d.data() as { text: string }).text)
+    .join("");
 }

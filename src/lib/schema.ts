@@ -207,6 +207,13 @@ export const Analysis = z.object({
   docType: DetectedDocType,
   docLabel: z.string(),
   state: z.string().nullable(),
+  /**
+   * Which side of the document the reader is on. Optional because analyses
+   * written before reopening existed do not carry it; a restored analysis
+   * without it falls back rather than guessing a side, since guessing wrong
+   * inverts whose interests every verdict is written from.
+   */
+  userSide: UserSide.optional(),
   progress: z.object({ total: z.number().int(), done: z.number().int() }),
   error: z.string().nullable(),
   createdAt: z.string(),
